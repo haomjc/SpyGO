@@ -6,7 +6,6 @@ import multiprocessing
 import time 
 
 def init_multyx_types(path, multyxlib):
-    os.chdir(path)
     # multyx.dll is a shared library that exposes a few standard C functions.
     # ctypes is a python package for calling C functions.
     # Load multyx.dll using the python ctypes.cdll.LoadLibrary() function:
@@ -20,6 +19,8 @@ def init_multyx_types(path, multyxlib):
     #   MsgCallbackFunctionPointer ptr_errorcallback,
     #   MsgCallbackFunctionPointer ptr_warningcallback
     # );
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(path)
     multyxlib.OpenMultyxSession.restype=ctypes.c_void_p
     multyxlib.OpenMultyxSession.argtypes=[
     ctypes.c_char_p,
@@ -76,6 +77,7 @@ def init_multyx_types(path, multyxlib):
     #
     # ShowOutput=1 if you want to see the output from multyx, =0 otherwise
     ShowOutput=ctypes.c_int(0) #Don't show output
+    # os.chdir(current_path)
     return multyxlib
 
 # Take a message as parameter, and return a bool DoAboort
@@ -115,12 +117,10 @@ def init_multyx_session(path, ses_file, multyxlib):
 
 
 class Process(multiprocessing.Process): 
-    def __init__(self, id, path, ses_file): 
-        super(Process, self).__init__(target=Interface, args=(path, ses_file))
+    def __init__(self, id, path, ses_file, library): 
+        super(Process, self).__init__(target=Interface, args=(path, ses_file, library))
         self.id = id
         
-
-
 class Interface:
     def __init__(self, path, ses_file, library) -> None:
         self.path = path
@@ -142,14 +142,16 @@ class Interface:
         del(self.interface) # release the dll library
 
 def main():
+    library=ctypes.cdll.LoadLibrary("C:/Program Files/Ansol/Transmission3Dx64/multyx")
     path = r'C:\Users\egrab\Desktop\T3D_test\load_1'
     ses_file = 'T3D_sim.ses'
-    process1 = multiprocessing.Process(target = Interface, args=(path, ses_file))
+    process1 = multiprocessing.Process(target = Interface, args=(path, ses_file, library))
     process1.start()
-    path = r'C:\Users\egrab\Desktop\T3D_spur\load_1'
-    ses_file = 'T3D_spur_sim.ses'
-    process2 = multiprocessing.Process(target = Interface, args=(path, ses_file))
-    process2.start()
+    pass
+    # path = r'C:\Users\egrab\Desktop\T3D_spur\load_1'
+    # ses_file = 'T3D_spur_sim.ses'
+    # process2 = multiprocessing.Process(target = Interface, args=(path, ses_file))
+    # process2.start()
 
 if __name__ == '__main__':
     main()

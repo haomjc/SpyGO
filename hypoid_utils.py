@@ -1,36 +1,41 @@
 import numpy as np
+import casadi as ca
+from casadi.casadi import exp
+from scipy.optimize import fsolve
 from math import sqrt, pi, atan, cos, sin, acos, asin, tan
+import screwCalculus as sc
 from utils import *
 
-def get_data_field_names(member, flank, fields = 'all'):
+
+def get_data_field_names(member, flank, fields = 'all'): # fileds = 'all', 'common', 'cutter', 'machine'
     if member.lower() == 'pinion' and flank.lower() == 'concave':
         cutterFieldName = 'PinionConcaveCutterData'
-        subCutterFieldName = 'pinCutCnv'
+        subCutterFieldName = '' #'pinCutCnv'
         commonFieldName = 'PinionCommonData'
-        subCommonFieldName = 'pin'
+        subCommonFieldName = '' # 'pin'
         machineFieldName = 'PinionConcaveMachineSettings'
-        subMachineFieldName = 'pinCnv'
+        subMachineFieldName = '' # 'pinCnv'
     elif member.lower() == 'pinion' and flank.lower() == 'convex':
         cutterFieldName = 'PinionConvexCutterData'
-        subCutterFieldName = 'pinCutCvx'
+        subCutterFieldName = '' # 'pinCutCvx'
         commonFieldName = 'PinionCommonData'
-        subCommonFieldName = 'pin'
+        subCommonFieldName = '' # 'pin'
         machineFieldName = 'PinionConvexMachineSettings'
-        subMachineFieldName = 'pinCvx'
+        subMachineFieldName = '' # 'pinCvx'
     elif member.lower() == 'gear' and flank.lower() == 'concave':
         cutterFieldName = 'GearConcaveCutterData'
-        subCutterFieldName = 'gearCutCnv'
+        subCutterFieldName = '' # 'gearCutCnv'
         commonFieldName = 'GearCommonData'
-        subCommonFieldName = 'gear'
+        subCommonFieldName = '' # 'gear'
         machineFieldName = 'GearConcaveMachineSettings'
-        subMachineFieldName = 'gearCnv'
+        subMachineFieldName = '' # 'gearCnv'
     elif member.lower() == 'gear' and flank.lower() == 'convex':
         cutterFieldName = 'GearConvexCutterData'
-        subCutterFieldName = 'gearCutCvx'
+        subCutterFieldName = '' # 'gearCutCvx'
         commonFieldName = 'GearCommonData'
-        subCommonFieldName = 'gear'
+        subCommonFieldName = '' # 'gear'
         machineFieldName = 'GearConvexMachineSettings'
-        subMachineFieldName = 'gearCvx'
+        subMachineFieldName = '' # 'gearCvx'
 
     if fields.lower() == 'all':
         return cutterFieldName, subCutterFieldName, commonFieldName, subCommonFieldName,machineFieldName, subMachineFieldName
@@ -41,7 +46,7 @@ def get_data_field_names(member, flank, fields = 'all'):
     elif fields.lower() == 'machine':
         return machineFieldName, subMachineFieldName
 
-def assignMachinePar(data, member, flank):
+def assign_machine_par(data, member, flank):
 
     mainFieldName, subFieldName = get_data_field_names(member, flank, fields = 'machine')
     common_field, sub_common_field = get_data_field_names(member, flank, fields = 'common')
@@ -110,7 +115,7 @@ def assignMachinePar(data, member, flank):
         [gam0,  0,  0,  0,   0,    0,    0,     0]      #joint Gear 3
         ])  
 
-def manageMachinePar(member, systemHand, mode = 'gleason'):
+def manage_machine_par(member, systemHand, mode = 'gleason'):
     
     # coefficient settings
     if mode.lower() == 'gleason':
@@ -181,11 +186,11 @@ def manageMachinePar(member, systemHand, mode = 'gleason'):
             ])
     return cMat, signMat
 
-def assignBlankPar(data, member):
+def assign_Blank_Par(data, member):
     _, _, commonFieldName, subCommonFieldName,\
            machineFieldName, subMachineFieldName = get_data_field_names(member, 'concave')
     
-    c_mat, s_mat = manageMachinePar(member, data['SystemData']['HAND'])
+    c_mat, s_mat = manage_machine_par(member, data['SystemData']['HAND'])
 
     A0 = data[commonFieldName][f'{subCommonFieldName}OUTERCONEDIST']
     Fw = data[commonFieldName][f'{subCommonFieldName}FACEWIDTH']
@@ -221,7 +226,7 @@ def assignBlankPar(data, member):
     beta = beta*pi/180 
     return (A0, Fw, beta, deltaf, deltab, gammaP, dpa, gammaF, dfa, gammaR, dra, gammaB, dba, RA)
 
-def assignToolPar(data, member, flank, stfFlank = None):
+def assign_tool_par(data, member, flank, stfFlank = None):
     
     alphaFlank = 0
     rho_straight = 2e6
@@ -246,13 +251,13 @@ def assignToolPar(data, member, flank, stfFlank = None):
         rhoTop = rho_straight
 
     else: # None (feature disabled)
-        rhoTop = 50 # initialize to a reasonable blend radius in case an identification activates the feature
+        rhoTop = 100 # initialize to a reasonable blend radius in case an identification activates the feature
         Czblade = rho*sin(alphap*pi/180)
         theta_iniz_blade = asin((Czblade + rhof)/(rho + rhof))
       
         stftop = rhof - rhof*sin(theta_iniz_blade)
         alphaTop = 0
-        if data[cutterFieldName][f'{subCutterFieldName}TopremANGLE'] is not 0:
+        if data[cutterFieldName][f'{subCutterFieldName}TopremANGLE'] != 0:
             msgbox("Tool with angle offset between tip & blade (toprem angle) not implemented", 'Error', 1)
 
     if data[cutterFieldName][f'{subCutterFieldName}FlankremTYPE'].lower() == 'blended':
@@ -270,12 +275,12 @@ def assignToolPar(data, member, flank, stfFlank = None):
         if stfFlank == None:
             stfFlank = rho/3
         alphaTop = 0
-        if data[cutterFieldName][f'{subCutterFieldName}FlankremANGLE'] is not 0:
+        if data[cutterFieldName][f'{subCutterFieldName}FlankremANGLE'] != 0:
             msgbox("Tool with angle offset between blade and flankrem (flankrem angle) not implemented", 'Error', 1)
 
     return (Rp,rho,rhof,rhoTop,rhoFlank,alphap,stfFlank,stftop,alphaTop,alphaFlank)
 
-def initialguesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, gammaR, S0, Rp, RA):
+def initial_guesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, gammaR, S0, Rp, RA):
     """
     A0 outer cone distance
     Fw facewidth
@@ -316,11 +321,11 @@ def initialguesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, 
     csiout = 0
     return (csiout, thetaout, phiout)
 
-def initial_guess_from_data(data, member, flank): # wrapper for initielguesses() to provide the designData instead of all the parameters
+def initial_guess_from_data(data, member, flank): # wrapper for initialguesses() to provide the designData instead of all the parameters
     hand = data['SystemData']['HAND']
-    toolvec = assignToolPar(data, member, flank)
-    RawMachinePar = assignMachinePar(data, member, flank)
-    cMat, signMat = manageMachinePar(member, hand)
+    toolvec = assign_tool_par(data, member, flank)
+    RawMachinePar = assign_machine_par(data, member, flank)
+    cMat, signMat = manage_machine_par(member, hand)
     MachineParMatrix = cMat * signMat * RawMachinePar
     m = RawMachinePar[6, 1]
     MachineParMatrix[6, 2:] = MachineParMatrix[6, 2:] * m
@@ -330,8 +335,8 @@ def initial_guess_from_data(data, member, flank): # wrapper for initielguesses()
     machCtr = MachineParMatrix[7, 0]
     gammaroot = MachineParMatrix[8, 0]
     S0 = MachineParMatrix[0, 0]  # radial setting
-    A0, Fw, beta, deltaf, deltab, gammaP, dpa, gammaF, dfa, gammaR, dra, gammaB, dba, RA = assignBlankPar(data, member)
-    triplet_guess = initialguesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, gammaroot, S0, toolvec[0], RA)
+    A0, Fw, beta, deltaf, deltab, gammaP, dpa, gammaF, dfa, gammaR, dra, gammaB, dba, RA = assign_Blank_Par(data, member)
+    triplet_guess = initial_guesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, gammaroot, S0, toolvec[0], RA)
     
     return triplet_guess
 
@@ -344,31 +349,18 @@ def initialize_design_data(): # return designData
     subCutterStrings = []
     machineStrings = []
     subMachineStrings = []
-    cutter_field, sub_cutter_field  = get_data_field_names('gear', 'concave', fields = 'cutter')
-    cutterStrings.append(cutter_field)
-    subCutterStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('gear', 'convex', fields = 'cutter')
-    cutterStrings.append(cutter_field)
-    subCutterStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('pinion', 'concave', fields = 'cutter')
-    cutterStrings.append(cutter_field)
-    subCutterStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('pinion', 'convex', fields = 'cutter')
-    cutterStrings.append(cutter_field)
-    subCutterStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('gear', 'concave', fields = 'machine')
-    machineStrings.append(cutter_field)
-    subMachineStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('gear', 'convex', fields = 'machine')
-    machineStrings.append(cutter_field)
-    subMachineStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('pinion', 'concave', fields = 'machine')
-    machineStrings.append(cutter_field)
-    subMachineStrings.append(sub_cutter_field)
-    cutter_field, sub_cutter_field  = get_data_field_names('pinion', 'convex', fields = 'machine')
-    machineStrings.append(cutter_field)
-    subMachineStrings.append(sub_cutter_field)
 
+    for member in ['gear', 'pinion']:
+        for flank in ['concave', 'convex']:
+            field, sub_field  = get_data_field_names(member, flank, fields = 'cutter')
+            cutterStrings.append(field)
+            subCutterStrings.append(sub_field)
+
+    for member in ['gear', 'pinion']:
+        for flank in ['concave', 'convex']:
+            field, sub_field  = get_data_field_names(member, flank, fields = 'machine')
+            machineStrings.append(field)
+            subMachineStrings.append(sub_field)
 
     SystemData = {
         'HAND': 0,
@@ -396,9 +388,11 @@ def initialize_design_data(): # return designData
             f'{subCommonStrings[ii]}BACKANGLE' : 0,
             f'{subCommonStrings[ii]}FRONTANGLE' : 0,
             f'{subCommonStrings[ii]}PITCHANGLE' : 0,
+            f'{subCommonStrings[ii]}BASECONEANGLE' : 0,
             f'{subCommonStrings[ii]}PITCHAPEX' : 0,
             f'{subCommonStrings[ii]}FACEAPEX' : 0,
             f'{subCommonStrings[ii]}ROOTAPEX' : 0,
+            f'{subCommonStrings[ii]}BASECONEAPEX' : 0,
         }
 
     for ii in range(0, 4):
@@ -468,7 +462,7 @@ def initialize_design_data(): # return designData
 
     return designData
 
-def main(): # debug main function
+def main(): # main function for scripting debug
     # designData = initialize_design_data()
     # dictprint(designData)
     # filename = r'C:\Users\egrab\Desktop\designData.txt'
@@ -479,6 +473,7 @@ def main(): # debug main function
 
     for ii in range(0,4):
         subprocess.Popen(["python.exe"], shell=True) 
+
 
 if __name__ == '__main__':
     main()

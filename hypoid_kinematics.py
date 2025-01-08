@@ -121,7 +121,7 @@ def casadi_machine_kinematics(member, systemHand, casadi_type = 'SX'):
     casadi_var = getattr(ca, casadi_type)
     machine_matrix = casadi_var.sym('M', 9, 8)
     auxiliary_mat = machine_matrix
-    [cMat, sMat] = manageMachinePar(member, systemHand)
+    [cMat, sMat] = manage_machine_par(member, systemHand)
     cMat = cMat*sMat
     roll = auxiliary_mat[6,1]
     auxiliary_mat = cMat*auxiliary_mat
@@ -480,13 +480,53 @@ def parametric_tool_casadi(flank, Rp, RHO, alpha, edgeRadius, csi, theta):
     normal = nTool(toolvec, np.array([csi, theta]))
     return point, normal
 
+def gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha):
+    E = EPGalpha[0]
+    P = EPGalpha[1]
+    G = EPGalpha[2]
+    alpha = EPGalpha[3]
+
+    s = 1
+    if hand.lower() == 'right':
+        s = -1
+
+    # relative kinematics of the gear w.r.t. the pinion
+
+    Tpg0 = sc.TtZ(-P)@sc.TtY((offset + E)*s)@sc.TrotY(SIGMA+alpha)@sc.TtZ(G)@sc.TrotZ(np.pi)
+    wP = np.array([0,0,-1]) # pinion axis
+    wG = -np.array([
+        np.sin(SIGMA+alpha),
+        0,
+        np.cos(SIGMA+alpha)
+    ]) # gear axis
+    cG = np.array([G, (offset+E)*s, -P]) # crossing point
+
+    twistP = np.concatenate((np.array([0,0,0]), wP))
+    twistG = np.concatenate((np.cross(cG, wG), wG))
+
+    Tpg = lambda phiG, phiP: sc.FWkin_globalPOE(Tpg0, np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))
+    Vpg_g = lambda phiG, phiP, phiPdot, phiGdot: sc.hat(sc.bodyJac_globalPOE(Tpg0, np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))@np.array([phiPdot, phiGdot]))
+    Vpg_p = lambda phiG, phiP, phiPdot, phiGdot: sc.hat(sc.spatialJac_globalPOE(Tpg0, np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))@np.array([phiPdot, phiGdot]))
+    
+    Tfp0 = sc.TtZ(-P)
+    Tfg0 = sc.TtY((offset+E)*s)@sc.TrotY(SIGMA+alpha)@sc.TtZ(G)@sc.TrotZ(np.pi)
+
+    Tfp = lambda phiP: sc.FWkin_globalPOE(Tfp0, -twistP.reshape(-1,1), np.array([phiP]), np.array([0]))
+    Tfg = lambda phiG: sc.FWkin_globalPOE(Tfg0, np.concatenate((np.array([0,0,0]), wP)).reshape(-1,1), np.array([phiG]), np.array([0]))
+    return Tpg, Vpg_g, Tfp, Tfg, Vpg_p
+
 def main():
-    toolvec = [50, 150, 1, 0, 300, 20, 0, 0, 0, 0]
-    p_fun, n_fun, L_fun = casadi_tool_fun('concave', None, None, 'SX')
-    print(p_fun(toolvec, np.array([[1,0], [1,0]])))
-    print(n_fun(toolvec, np.array([[1,0], [1,0]])))
-    pp, nn = parametric_tool_casadi('concave', toolvec[0], toolvec[1], toolvec[5], toolvec[2], 1, 1)
-    print(pp.full())
+    EPGalpha = np.array([0, 0, 0, 0])
+    SIGMA = np.pi/2
+    offset = 20
+    hand = 'right'
+    
+
+    Tpg, Vpg_g, Tfp, Tfg, Vpg_p = gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha)
+
+    # print(Tpg(0,0))
+    # print(Vpg_g(1,1,1,1))
+    # print(Tfg(1))
 
 if __name__ == '__main__':
     main()

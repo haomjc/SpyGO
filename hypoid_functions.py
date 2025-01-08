@@ -14,7 +14,6 @@ import screwCalculus as sc
 
 """ Note: after completing the packages consider merging "hypoid_functions" with "hypoid_utils" """
 
-
 def approxToolIdentification_casadi(data, member, RHO = None):
 
     RHOinput = RHO
@@ -70,8 +69,8 @@ def approxToolIdentification_casadi(data, member, RHO = None):
         pressAngCnv = alphanD
         pressAngCvx = alphanC
 
-    machinePar = assignMachinePar(data, member, 'concave')
-    cMat, sMat = manageMachinePar(member, hand)
+    machinePar = assign_machine_par(data, member, 'concave')
+    cMat, sMat = manage_machine_par(member, hand)
     machineParMatrix = cMat*sMat*machinePar
 
     # Kinematic computation
@@ -188,7 +187,7 @@ def approxToolIdentification_casadi(data, member, RHO = None):
 
     return data, triplet_concave, triplet_convex
 
-def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method = 1, rc0 = None, GearGenType = "Generated"):
+def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method = 1, rc0 = None, GearGenType = "Generated", gearTilt = 0):
     
     rc0Flag = True
     if rc0 is None or rc0 is np.nan:
@@ -574,18 +573,20 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData[machine_field][f'{sub_machine_field}RADIALSETTING'] = sqrt((Rm2*cos(thetaf2))**2 + rc0**2 - 2*Rm2*cos(thetaf2)*rc0*sin(betam2))
     basicDesignData[machine_field][f'{sub_machine_field}CRADLEANGLE'] = atan(   rc0*cos(betam2)/(Rm2*cos(thetaf2) - rc0*sin(betam2))   )*180/pi
     basicDesignData[machine_field][f'{sub_machine_field}ROOTANGLE'] = deltaf2*180/pi
-    basicDesignData[machine_field][f'{sub_machine_field}SLIDINGBASE'] = slidingBaseGear
+    basicDesignData[machine_field][f'{sub_machine_field}SLIDINGBASE'] = slidingBaseGear*0 + gearTilt*pi/180*rc0
     basicDesignData[machine_field][f'{sub_machine_field}MACHCTRBACK'] = machCtrbckGear
     basicDesignData[machine_field][f'{sub_machine_field}RATIOROLL'] = cos(thetaf2)/sin(delta2)
+    basicDesignData[machine_field][f'{sub_machine_field}TILTANGLE'] = gearTilt
 
     machine_field, sub_machine_field = get_data_field_names('gear', 'convex', fields = 'machine')
     # convex gear
     basicDesignData[machine_field][f'{sub_machine_field}RADIALSETTING'] = sqrt((Rm2*cos(thetaf2))**2 + rc0**2 - 2*Rm2*cos(thetaf2)*rc0*sin(betam2))
     basicDesignData[machine_field][f'{sub_machine_field}CRADLEANGLE'] = atan(   rc0*cos(betam2)/(Rm2*cos(thetaf2) - rc0*sin(betam2))   )*180/pi
     basicDesignData[machine_field][f'{sub_machine_field}ROOTANGLE'] = deltaf2*180/pi
-    basicDesignData[machine_field][f'{sub_machine_field}SLIDINGBASE'] = slidingBaseGear
+    basicDesignData[machine_field][f'{sub_machine_field}SLIDINGBASE'] = slidingBaseGear*0 + gearTilt*pi/180*rc0
     basicDesignData[machine_field][f'{sub_machine_field}MACHCTRBACK'] = machCtrbckGear
     basicDesignData[machine_field][f'{sub_machine_field}RATIOROLL'] = cos(thetaf2)/sin(delta2)
+    basicDesignData[machine_field][f'{sub_machine_field}TILTANGLE'] = -gearTilt
 
     # concave pinion
     machine_field, sub_machine_field = get_data_field_names('pinion', 'concave', fields = 'machine')
@@ -685,70 +686,253 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
 
     return basicDesignData
 
-def shaftSegmentComputation(data):
-    gear_data = data['GearCommonData']
-    pinion_data = data['PinionCommonData']
+def shaft_segment_computation(data):
+
+    gear_common_field, gear_sub_common = get_data_field_names('gear', 'concave', fields = 'common')
+    pinion_common_field, pinion_sub_common = get_data_field_names('pinion', 'concave', fields = 'common')
+
+    gear_data = data[gear_common_field]
+    pinion_data = data[pinion_common_field]
     
     # compute gear data
-    O_g = gear_data['gearOUTERCONEDIST']
-    gamma_g = gear_data['gearPITCHANGLE']
-    pA_g = gear_data['gearPITCHAPEX']
-    bA_g = gear_data['gearBASECONEAPEX']
-    gammab_g = gear_data['gearBASECONEANGLE']
-    Fw_g = gear_data['gearFACEWIDTH']
-    backA_g = gear_data['gearBACKANGLE']
-    frontA_g = gear_data['gearFRONTANGLE']
+    O_g = gear_data[f'{gear_sub_common}OUTERCONEDIST']
+    gamma_g = gear_data[f'{gear_sub_common}PITCHANGLE']
+    pA_g = gear_data[f'{gear_sub_common}PITCHAPEX']
+    bA_g = gear_data[f'{gear_sub_common}BASECONEAPEX']
+    gammab_g = gear_data[f'{gear_sub_common}BASECONEANGLE']
+    Fw_g = gear_data[f'{gear_sub_common}FACEWIDTH']
+    backA_g = gear_data[f'{gear_sub_common}BACKANGLE']
+    frontA_g = gear_data[f'{gear_sub_common}FRONTANGLE']
     
     PB_g = np.array([O_g * np.cos(np.deg2rad(gamma_g)) - pA_g, 
                      O_g * np.sin(np.deg2rad(gamma_g))])  # [z, R]
     PF_g = np.array([(O_g - Fw_g) * np.cos(np.deg2rad(gamma_g)) - pA_g, 
                      (O_g - Fw_g) * np.sin(np.deg2rad(gamma_g))])  # [z, R]
     
-    zB_g = (-np.tan(np.deg2rad(gammab_g)) * bA_g + PB_g[1] + np.tan(np.deg2rad(90 - backA_g)) * PB_g[0]) / \
-            (np.tan(np.deg2rad(gammab_g)) + np.tan(np.deg2rad(90 - backA_g)))
+    tangent_front = np.tan(np.deg2rad(90 - frontA_g))
+    tangent_back = np.tan(np.deg2rad(90 - frontA_g))
+
+    zB_g = (-np.tan(np.deg2rad(gammab_g)) * bA_g + PB_g[1] + tangent_back * PB_g[0]) / \
+            (np.tan(np.deg2rad(gammab_g)) + tangent_back)
+    zA_g = (-np.tan(np.deg2rad(gammab_g)) * bA_g + PF_g[1] + tangent_front * PF_g[0]) / \
+            (np.tan(np.deg2rad(gammab_g)) + tangent_front)
+    
+    # check if front and back angle rise singularities
+    if tangent_back == np.inf:
+        zB_g =  PB_g[0]
+    if tangent_front == np.inf:
+        zA_g = PF_g[0]
+
     RB_g = np.tan(np.deg2rad(gammab_g)) * zB_g + np.tan(np.deg2rad(gammab_g)) * bA_g
-    zA_g = (-np.tan(np.deg2rad(gammab_g)) * bA_g + PF_g[1] + np.tan(np.deg2rad(90 - frontA_g)) * PF_g[0]) / \
-            (np.tan(np.deg2rad(gammab_g)) + np.tan(np.deg2rad(90 - frontA_g)))
     RA_g = np.tan(np.deg2rad(gammab_g)) * zA_g + np.tan(np.deg2rad(gammab_g)) * bA_g
     
-    gear_data['gearShaftzB'] = zB_g
-    gear_data['gearShaftRB'] = RB_g
-    gear_data['gearShaftzA'] = zA_g
-    gear_data['gearShaftRA'] = RA_g
-    gear_data['gearShaftDiA'] = RA_g * (2 - 0.85)  # diametro interno a ridosso del punto A
-    gear_data['gearShaftDiB'] = RB_g * (2 - 0.85)  # diametro interno a ridosso del punto B
+    gear_data[f'{gear_sub_common}ShaftzB'] = zB_g
+    gear_data[f'{gear_sub_common}ShaftRB'] = RB_g
+    gear_data[f'{gear_sub_common}ShaftzA'] = zA_g
+    gear_data[f'{gear_sub_common}ShaftRA'] = RA_g
+    gear_data[f'{gear_sub_common}ShaftDiA'] = RA_g * (2 - 0.85)  # diametro interno a ridosso del punto A
+    gear_data[f'{gear_sub_common}ShaftDiB'] = RB_g * (2 - 0.85)  # diametro interno a ridosso del punto B
 
     # compute pinion data
-    O_p = pinion_data['pinOUTERCONEDIST']
-    gamma_p = pinion_data['pinPITCHANGLE']
-    pA_p = pinion_data['pinPITCHAPEX']
-    bA_p = pinion_data['pinBASECONEAPEX']
-    gammab_p = pinion_data['pinBASECONEANGLE']
-    Fw_p = pinion_data['pinFACEWIDTH']
-    backA_p = pinion_data['pinBACKANGLE']
-    frontA_p = pinion_data['pinFRONTANGLE']
+    O_p = pinion_data[f'{pinion_sub_common}OUTERCONEDIST']
+    gamma_p = pinion_data[f'{pinion_sub_common}PITCHANGLE']
+    pA_p = pinion_data[f'{pinion_sub_common}PITCHAPEX']
+    bA_p = pinion_data[f'{pinion_sub_common}BASECONEAPEX']
+    gammab_p = pinion_data[f'{pinion_sub_common}BASECONEANGLE']
+    Fw_p = pinion_data[f'{pinion_sub_common}FACEWIDTH']
+    backA_p = pinion_data[f'{pinion_sub_common}BACKANGLE']
+    frontA_p = pinion_data[f'{pinion_sub_common}FRONTANGLE']
     
+    # pitch cone-back cone intersection
     PB_p = np.array([O_p * np.cos(np.deg2rad(gamma_p)) - pA_p, 
                      O_p * np.sin(np.deg2rad(gamma_p))])  # [z, R]
+    # pitch cone- face cone intersection
     PF_p = np.array([(O_p - Fw_p) * np.cos(np.deg2rad(gamma_p)) - pA_p, 
                      (O_p - Fw_p) * np.sin(np.deg2rad(gamma_p))])  # [z, R]
     
-    zB_p = (-np.tan(np.deg2rad(gammab_p)) * bA_p + PB_p[1] + np.tan(np.deg2rad(90 - backA_p)) * PB_p[0]) / \
-            (np.tan(np.deg2rad(gammab_p)) + np.tan(np.deg2rad(90 - backA_p)))
+    tangent_front = np.tan(np.deg2rad(90 - frontA_p))
+    tangent_back = np.tan(np.deg2rad(90 - backA_p))
+    
+    zB_p = (-np.tan(np.deg2rad(gammab_p)) * bA_p + PB_p[1] + tangent_back * PB_p[0]) / \
+            (np.tan(np.deg2rad(gammab_p)) + tangent_back)
+ 
+    zA_p = (-np.tan(np.deg2rad(gammab_p)) * bA_p + PF_p[1] + tangent_front * PF_p[0]) / \
+            (np.tan(np.deg2rad(gammab_p)) + tangent_front)
+    
+    # check if front and back angle rise singularities
+    if tangent_back == np.inf:
+        zB_p =  PB_p[0]
+    if tangent_front == np.inf:
+        zA_p = PF_p[0]
+
     RB_p = np.tan(np.deg2rad(gammab_p)) * zB_p + np.tan(np.deg2rad(gammab_p)) * bA_p
-    zA_p = (-np.tan(np.deg2rad(gammab_p)) * bA_p + PF_p[1] + np.tan(np.deg2rad(90 - frontA_p)) * PF_p[0]) / \
-            (np.tan(np.deg2rad(gammab_p)) + np.tan(np.deg2rad(90 - frontA_p)))
     RA_p = np.tan(np.deg2rad(gammab_p)) * zA_p + np.tan(np.deg2rad(gammab_p)) * bA_p
     
-    pinion_data['pinShaftzB'] = zB_p
-    pinion_data['pinShaftRB'] = RB_p
-    pinion_data['pinShaftzA'] = zA_p
-    pinion_data['pinShaftRA'] = RA_p
-    pinion_data['pinShaftDiA'] = RA_p * (2 - 0.85)  # diametro interno a ridosso del punto A
-    pinion_data['pinShaftDiB'] = RB_p * (2 - 0.85)  # diametro interno a ridosso del punto B
+    pinion_data[f'{pinion_sub_common}ShaftzB'] = zB_p
+    pinion_data[f'{pinion_sub_common}ShaftRB'] = RB_p
+    pinion_data[f'{pinion_sub_common}ShaftzA'] = zA_p
+    pinion_data[f'{pinion_sub_common}ShaftRA'] = RA_p
+    pinion_data[f'{pinion_sub_common}ShaftDiA'] = RA_p * (2 - 0.85)  # diametro interno a ridosso del punto A
+    pinion_data[f'{pinion_sub_common}ShaftDiB'] = RB_p * (2 - 0.85)  # diametro interno a ridosso del punto B
     
     return data
 
+def rz_boundaries_computation(data, member):
+    common, sub_common = get_data_field_names(member, 'concave', fields = 'common')
+    machine, sub_machine = get_data_field_names(member, 'concave', fields = 'machine')
+
+    O = data[common][f'{sub_common}OUTERCONEDIST']
+    Fw = data[common][f'{sub_common}FACEWIDTH']
+
+    if f'{sub_common}MEANCONEDIST' not in data[common]:
+        data[common][f'{sub_common}MEANCONEDIST'] = O - Fw/2
+        data[common][f'{sub_common}INNERCONEDIST'] = O - Fw
+
+    face_angle = data[common][f'{sub_common}FACEANGLE']
+    pitch_angle = data[common][f'{sub_common}PITCHANGLE']
+    root_angle = data[machine][f'{sub_machine}ROOTANGLE']
+    front_angle = data[common][f'{sub_common}FRONTANGLE']
+    back_angle = data[common][f'{sub_common}BACKANGLE']
+    base_angle = data[common][f'{sub_common}BASECONEANGLE']
+
+
+    pitch_apex = data[common][f'{sub_common}PITCHAPEX']
+    face_apex = data[common][f'{sub_common}FACEAPEX']
+    root_apex = data[common][f'{sub_common}ROOTAPEX']
+
+    # pitch-back cones intersection
+    PB = np.array(
+        [O*np.cos(np.deg2rad(pitch_angle)) - pitch_apex, # z
+        O*np.sin(np.deg2rad(pitch_angle))]               # R
+    )
+
+    # pitch-face cones intersection
+    PF = np.array(
+        [(O-Fw)*np.cos(np.deg2rad(pitch_angle)) - pitch_apex, # z
+        (O- Fw)*np.sin(np.deg2rad(pitch_angle))]              # R
+    )
+
+    P_center = (PB + PF)/2
+
+    tangent_front = np.tan(np.deg2rad(90 - front_angle))
+    tangent_back = np.tan(np.deg2rad(90 - back_angle))
+
+    z_root_heel = (-np.tan(np.deg2rad(root_angle)) * root_apex + PB[1] + tangent_back * PB[0]) / \
+            (np.tan(np.deg2rad(root_angle)) + tangent_back)
+    z_root_toe = (-np.tan(np.deg2rad(root_angle)) * root_apex + PF[1] + tangent_front * PF[0]) / \
+            (np.tan(np.deg2rad(root_angle)) + tangent_front)
+
+    z_face_heel = (-np.tan(np.deg2rad(face_angle)) * face_apex + PB[1] + tangent_back * PB[0]) / \
+            (np.tan(np.deg2rad(face_angle)) + tangent_back)
+    z_face_toe = (-np.tan(np.deg2rad(face_angle)) * face_apex + PF[1] + tangent_front * PF[0]) / \
+            (np.tan(np.deg2rad(face_angle)) + tangent_front)
+
+    
+    if tangent_front == np.inf:
+        zA = PF[0]
+    if tangent_back == np.inf:
+        zB = PB[0]
+
+    R_root_heel = np.tan(np.deg2rad(root_angle)) * z_root_heel + np.tan(np.deg2rad(root_angle)) * root_apex
+    R_root_toe = np.tan(np.deg2rad(root_angle)) * z_root_toe + np.tan(np.deg2rad(root_angle)) * root_apex
+
+    R_face_heel = np.tan(np.deg2rad(face_angle)) * z_face_heel + np.tan(np.deg2rad(face_angle)) * face_apex
+    R_face_toe = np.tan(np.deg2rad(face_angle)) * z_face_toe + np.tan(np.deg2rad(face_angle)) * face_apex
+
+    data[common][f'{sub_common}zROOTHEEL'] = z_root_heel
+    data[common][f'{sub_common}RROOTHEEL'] = R_root_heel
+    data[common][f'{sub_common}zROOTTOE'] = z_root_toe
+    data[common][f'{sub_common}RROOTTOE'] = R_root_toe
+
+    data[common][f'{sub_common}zFACEHEEL'] = z_face_heel
+    data[common][f'{sub_common}RFACEHEEL'] = R_face_heel
+    data[common][f'{sub_common}zFACETOE'] = z_face_toe
+    data[common][f'{sub_common}RFACETOE'] = R_face_toe
+
+    zR = np.array([
+        [z_root_toe, R_root_toe],
+        [z_root_heel, R_root_heel],
+        [z_face_heel, R_face_heel],
+        [z_face_toe, R_face_toe]]
+    )
+    return data, P_center, zR
+
+def PCA_computation(data, member, side, EPGalpha, boundary_points, boundary_points_other, n_face, n_prof):
+    pinion_common, pinion_sub_common = get_data_field_names('pinion', 'concave', fields = 'common')
+    gear_common, gear_sub_common = get_data_field_names('gear', 'concave', fields = 'common')
+    offset = data['SystemData']['hypoidOffset']
+    SIGMA = np.deg2rad(data['SystemData']['shaft_angle'])
+    u = data['SystemData']['ratio']
+    hand = data['SystemData']['HAND']
+    nP = data[pinion_common][f'{pinion_sub_common}NTEETH']
+    nG = data[gear_common][f'{gear_sub_common}NTEETH']
+
+    if member.lower() == 'gear':
+        otherFlank = 'concave' if side.lower() == 'drive' else 'convex'
+        otherMember = 'pinion'
+
+        points_other = boundary_points_other[0]
+        points_other = np.vstack((points_other, np.ones(points_other.shape[1])))  # Add row of ones
+        normalsOther = boundary_points_other[1]
+        normalsOther = np.vstack((normalsOther, np.zeros(normalsOther.shape[1])))  # Add row of zeros
+
+        zR = newpinToGearRZ(data, points_other, normalsOther, EPGalpha, guess = 2 * np.pi / nP / 3)
+        points = boundary_points[0]
+
+        counter = 0
+        midface = n_face + n_prof - 1 + n_face // 2
+        corner = n_face + n_prof - 1
+        C = zR[midface, :]
+        A3D = points[:3, midface]
+        B3D = points[:3, corner]
+        A = [A3D[2], np.sqrt(A3D[0]**2 + A3D[1]**2)]
+        B = [B3D[2], np.sqrt(B3D[0]**2 + B3D[1]**2)]
+        AB = np.array(B) - np.array(A)
+        AC = np.array(C) - np.array(A)
+
+        # Check the condition for alignment
+        check = AC[0] * AB[1] - AC[1] * AB[0]
+
+        while check < 0:
+            zR = newpinToGearRZ(data, points_other, normalsOther, EPGalpha, guess = -2 * np.pi / nP / 4 - 2 * np.pi / nP / 8 * counter)
+            C = zR[34, :]
+            AC = np.array(C) - np.array(A)
+            check = AC[0] * AB[1] - AC[1] * AB[0]
+            counter += 1
+            if counter == 100:
+                break
+
+    else:  # member is 'pinion'
+        otherFlank = 'convex' if side.lower() == 'drive' else 'concave'
+        otherMember = 'gear'
+
+        points_other = boundary_points_other[0]
+        points_other = np.vstack((points_other, np.ones(points_other.shape[1])))  # Add row of ones
+        normalsOther = boundary_points_other[1]
+        normalsOther = np.vstack((normalsOther, np.zeros(normalsOther.shape[1])))  # Add row of zeros
+        points = boundary_points[0]
+
+        zR = newgearToPinRz(Data, points_other, normalsOther, EPGalpha, 'guess', 2 * np.pi / 2 / nG)
+
+        if np.min(zR[:, 0]) <= np.min(points[2, :]) * 0.9:
+            zR = newgearToPinRz(Data, points_other, normalsOther, EPGalpha, 'guess', -2 * np.pi / 2 / nG)
+
+    zRinOther = zR
+    return zRinOther
+
+
+def pin_to_gear_rz(data, points_pinion, normals_pinino, EPGalpha, guess = 0):
+    offset = data['SystemData']['hypoidOffset']
+    SIGMA = np.deg2rad(data['SystemData']['shaft_angle'])
+    u = data['SystemData']['ratio']
+    hand = data['SystemData']['HAND']
+
+    if not EPGalpha or EPGalpha is None:
+        EPGalpha = np.array([0, 0, 0, 0])
+    
+    Tpg, Vpg, _, _, Vgp = gear_to
+
+    return
 def main():
 
     SystemData = {
@@ -787,10 +971,10 @@ def main():
     }
 
     data = AGMAcomputationHypoid(SystemData['HAND'], SystemData['taper'], coneData, toothData, rc0 = coneData['rc0'])
-    data = shaftSegmentComputation(data)
+    data = shaft_segment_computation(data)
     data["GearCommonData"]["GearGenType"] = 'generated'
-    gearBlank = assignBlankPar(data, 'gear')
-    pinionBlank = assignBlankPar(data, 'pinion')    
+    gearBlank = assign_Blank_Par(data, 'gear')
+    pinionBlank = assign_Blank_Par(data, 'pinion')    
     print(gearBlank)
     print(pinionBlank)  
     data, trpl_cnv, trpl_cvx = approxToolIdentification_casadi(data, 'gear', RHO = 500)
@@ -811,7 +995,7 @@ def main2():
         [0.4733,    0.3804,    0.4694,    0.2630,    0.8258,    0.8173,    0.2638,    0.3510],
         [0.3517,    0.5678,    0.0119,    0.6541,    0.5383,    0.8687,    0.1455,    0.5132]
     ])
-    [cmat, smat] = manageMachinePar('pinion', 'right')
+    [cmat, smat] = manage_machine_par('pinion', 'right')
     anew = a*cmat*smat
     roll = anew[6,1]
     anew[6, 2:-1] = anew[6, 2:-1]*roll

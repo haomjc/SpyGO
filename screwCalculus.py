@@ -21,7 +21,9 @@ import casadi as ca
 #  2)
 #  
 
-# rotations and homogeneous transformations
+"""
+rotations and homogeneous transformations
+""" 
 
 def rotX(x):
     if isinstance(x, ca.SX) or isinstance(x, ca.MX):
@@ -167,7 +169,59 @@ def TtP(x):
         [0,0,0,1]
         ])
 
-# Lie operators
+def DH_transformation(DH_parameters, q, joint_type):
+    """
+    Denavit-Hartemberg template transofmation and its differentiation
+    DH_parameters = [a, alpha, d, theta]
+    """
+    a = DH_parameters[0]
+    alpha = DH_parameters[1]
+    d = DH_parameters[2]
+    theta = DH_parameters[3]
+    d_dq = 0
+    dtheta_dq = 0
+    # check joint type to include the joint variable q
+    if joint_type.lower() == 'p': # prismatic
+        d += q
+        d_dq = 1
+    elif joint_type.lower() == 'r': # revolute
+        theta += q
+        dtheta_dq = 1
+
+    # trig expressionis
+    cth = np.cos(theta)
+    sth = np.sin(theta)
+    calpha = np.cos(alpha)
+    salpha = np.sin(alpha)
+        
+    T = np.array([
+        [cth, -calpha*sth, salpha*sth, a*cth],
+        [sth, calpha*cth, -salpha*cth, a*sth],
+        [0, salpha, calpha, d],
+        [0,0,0,1]
+        ])
+    
+    # T = ca.vertcat(ca.horzcat(cth, -calpha*sth, salpha*sth, a*cth),
+    #                ca.horzcat(sth, calpha*cth, -salpha*cth, a*sth),
+    #                ca.horzcat(0, salpha, calpha, d),
+    #                 ca.horzcat(0,0,0,1))
+    
+    dT_dtheta = np.array([
+        [-sth, -cth*calpha, cth*salpha, -a*sth],
+        [cth, -sth*calpha, sth*salpha, a*cth],
+        [0,0,0,0],
+        [0,0,0,0]
+    ])
+    dT_dd = np.zeros((4,4))
+    dT_dd[2,3] = d_dq
+
+    dT_dq = dT_dtheta + dT_dd
+
+    return T, dT_dq
+
+"""
+Lie algebra operators
+"""
 
 def hat(x):
     if isinstance(x, ca.SX) or isinstance(x, ca.MX):
@@ -256,9 +310,9 @@ def adjointStar(x):
 def rigidInverse(x):
     R = x[0:3,0:3]
     d = x[0:3,3]
-    return RPTohomogeneous(R.T, (-R.T)@d) # mtimes = @ (also for casadi API)
+    return RPTohomogeneous(R.T, (-R.T)@d)
 
-# twist exponentials
+"""twist exponentials"""
 
 def expSkew(axis, x):
     """
@@ -322,7 +376,25 @@ def expTw(unitTwist, x, helix):
         d = (np.eye(3) - R)@q + helix*axis*x
     return RPTohomogeneous(R, d)
 
-# chains kinematics with different parametrizations
+"""kinematic chains with different parametrizations"""
+
+def DHFWkin(DH_table, q, joint_type):
+    """
+    forward kinematics calculation with DH parameterization
+    """
+    n = np.max(q.shape)
+    Tj = [0]*n
+    T0j = [0]*n
+    Tj[0], _ = DH_transformation(DH_table[0,:], q[0], joint_type[0])
+    T0E = Tj[0]
+    T0j[0] = Tj[0]
+
+    for j in range(1,n):
+        Tj[j], _ = DH_transformation(DH_table[j,:], q[j], joint_type[j])
+        T0E @=Tj[j]
+        T0j[j] = T0E
+
+    return T0E, Tj, T0j
 
 def FWkin_globalPOE_v2(gst0, *joints):
     """
@@ -455,6 +527,40 @@ def spatialJac_localPOE(G_offset, *joints, EE_offset = np.eye(4)):
     J[:, -1] = adjoint(B)@adjoint(EE_offset)@joints[-1][0]
     return J
 
+def DHJac(T0j, joint_type, joint_index = None, base_offset = np.eye(4), end_offset = np.eye(4)):
+    """
+    joint_index: number of jonit w.r.t. jacibian is computed; None = end_effector
+    base_offet: homogeneous matrix transform defining the base offset
+    end_offset: homogeneous matrix transform defining the end-effector offset
+    """
+    n = len(T0j) # using len cause T0j is a tuple
+
+    if joint_index is not None:
+        n = joint_index
+    
+    O_0n = T0j[n-1][0:3, 3] # extracting origin point of the last frame
+
+    Jac = np.zeros((6, len(T0j)), dtype=T0j[0].dtype)
+    z_axis = np.array([0,0,1])
+    if joint_type[0].lower() == 'P':
+        Jac[2,0] = 1
+    elif joint_type[0].lower() == 'R':
+        Jac[:, 0] = np.concatenate((np.cross(z_axis, O_0n), z_axis), axis = 0)
+
+    for jj in range (1, n):
+        T0j_1 = T0j[jj-1]
+        k = T0j_1[0:3, 2]
+        O_0j = T0j_1[0:3, 3]
+        O_jn = O_0n-O_0j
+
+        if joint_type[jj].lower() == 'p':
+            Jac[0:3, jj] = k
+        elif joint_type[jj].lower() == 'r':
+            Jac[:, jj] = np.concatenate((np.cross(k, O_jn), k),axis = 0)
+
+    return Jac
+
+    return
 def toSO3(R):
     """
     Returns the projection of a 3x3 matrix to SO(3) (antysym orthogonal)
@@ -525,7 +631,7 @@ def rotNthetaToQuat(n, theta):
 
 def eulParSpatialJac(q):
     """
-    Jacobian associated with the Euler parameters
+    Jacobian associated with the Euler parameters (QUATERNIONS)
     """
     if isinstance(q, ca.SX) or isinstance(q, ca.MX):
         q = ca.reshape(q, 4, 1)
@@ -542,6 +648,9 @@ def eulParSpatialJac(q):
             )
 
 def eulParSpatialJacInv(q):
+    """
+    Inverse Jacobian associated with the Euler parameters (QUATERNIONS)
+    """
     if isinstance(q, ca.SX) or isinstance(q, ca.MX):
         q = ca.reshape(q, 4, 1)
         qvec = q[1:]
@@ -558,7 +667,7 @@ def eulParSpatialJacInv(q):
 
 #==============================================================================
 #
-#  CASADI COMPATIBLE INTEGRATORS
+#  CASADI COMPATIBLE INTEGRATORS (just Runge Kutta and direct collocation)
 #
 #==============================================================================
 
@@ -611,18 +720,78 @@ def RK4(x_expr, u_expr, xdot_expr, x0, t0, t_end, dt, u_in, Nsteps = 1, t_expr =
 
     return x_num
 
+def DC_coefficients(d, method = 'legendre'):
+    """
+    precomputing the direct collocation coefficient matrices
+    the coefficients are the pre-computed lagrange basis at the collocation points
+
+    polynomial function apporximation, evaluated at the k-th collocation points is equal to:
+    x_dot_{k} = sum_{i=0}^{d} ( xcolloc_{i}*C_{ki} )
+
+    polynomial expression at the k-th collocation point is simply equal to:
+    x_{k} = xcolloc_{k}
+    """
+    tau_root = ca.collocation_points(d, method)
+    tau_root.insert(0, 0) # insert interval origin as node
+
+    # coefficients at the collocation points, polynomial derivative at collocation points l_dot(tau_i)
+    # each COLUMN are the Lagrange bases at the specific collocation point (collocation points along columns)
+    C = np.zeros((d+1, d+1))
+
+    # coefficients of the continuity equation
+    D = np.zeros((d+1))
+
+    # coefficients of the quadrture function
+    B = np.zeros((d+1))
+
+    for j in range(0, d+1): # loop over collocation points for which the coefficients are computed
+        coeff = np.array([1])
+        for r in range(0, d+1):
+            if r != j:
+                coeff = np.convolve(coeff, np.array([1, -tau_root[r]]))
+                coeff = coeff/(tau_root[j] - tau_root[r])
+
+        # evaluate polynomial at the interval end
+        D[j] = np.polyval(coeff, 1) 
+
+        # evaluate the polynomial derivative at colloc. points
+        coeff_der = np.polyder(coeff)
+        for r in range(0, d+1):
+            C[j, r] = np.polyval(coeff_der, tau_root[r])
+        
+        # evaluate the integral of the polynomial over the interval
+        coeff_int = np.polyint(coeff)
+        B[j] = np.polyval(coeff_int, 1)
+
+    return tau_root, C, D, B
+
+def DC_step(x, u, xdot, dt, tau, D, C, B):
+    """
+    To compute the step we have to satisfy collocation equations:
+    x_colloc_dot = f(x_colloc, u_colloc)
+    for each collocation point (d in total)
+    once we have satisfied the collocation points we just have to compute the state at the end interval
+    x_next = sum_i x_colloc_i*D_i
+    """
+    d = tau.len()
+    return
+
+def DC_integrator(x, u, xdot, dt, d = 3):
+    """
+    implicit direct collocation integration
+    """
+    return
 
 # =============================================================================
 # 
-#  MAIN SCRIPT FOR TEST
+#  MAIN SCRIPTs FOR TEST (examples)
 # 
 # =============================================================================
 
-def main():
+def main_integrators():
     import matplotlib.pyplot as plt
 
     # try to simulate Lorentz attractor
-    
     sigma = 3
     beta = 1
     rho = 26.5
@@ -647,14 +816,87 @@ def main():
 
     ax = plt.figure().add_subplot(projection='3d')
     ax.view_init(elev=30, azim=45, roll=15)
-    # ax.plot(x_simulation[0,:], x_simulation[1,:], x_simulation[2,:])
-    # ax.plot(x_simulation2[0,:], x_simulation2[1,:], x_simulation2[2,:])
-    ax.plot(x_diff[0,:], x_diff[1,:], x_diff[2,:])
+    ax.plot(x_simulation[0,:], x_simulation[1,:], x_simulation[2,:], color = 'black')
+    # ax.plot(x_simulation2[0,:], x_simulation2[1,:], x_simulation2[2,:], color = 'blue')
+    # ax.plot(x_diff[0,:], x_diff[1,:], x_diff[2,:], color = 'red')
     plt.show()
 
+def main_localPOE():
+    import matplotlib.pyplot as plt
+
+def main_globalPOE():
+    import matplotlib.pyplot as plt
+
+def main_DH_Stanford():
+    import matplotlib.pyplot as plt
+    import easy_plot as ep
+
+    n = 6 # number of joints
+
+    # Denavit-Hartemberg table
+    DH_table = np.array([
+        [0, -np.pi/2, 0.4, 0],
+        [0, np.pi/2, 0.4, 0],
+        [0, 0, 0, 0],
+        [0, np.pi/2, 0.4, -np.pi/2],
+        [0, np.pi/2, 0, np.pi/2],
+        [0, 0, 0.4, 0]
+    ])
+
+    # joint types
+    joint_type = ['R']*n
+    joint_type[2] = 'P'
+
+    # casadi joint variables
+    q = ca.SX.sym('q', 6, 1)
+
+    # Forward kinematics
+    T0E, Tj, T0j = DHFWkin(DH_table, q, joint_type)
+    # Jacobian
+    Jac_expr = DHJac(T0j, joint_type, joint_index = None, base_offset = np.eye(4), end_offset = np.eye(4))
+    Jac_fun = ca.Function('Jac', [q], [Jac_expr])
+    
+    # casadi expressions to functions
+    T0E_fun = ca.Function('T0E', [q], [T0E])
+    Tj_fun = ca.Function('Tj', [q], Tj)
+
+    # evaluating functions numerically
+    T0E_num = T0E_fun(np.zeros((n, 1)))
+    Tj_num = Tj_fun(np.zeros((n, 1)))
+    
+    
+    
+
+    F = ep.Figure(title= 'Stanford Manipulator')
+
+    joints = []
+    parent = None
+    for ii in range(0, len(Tj_num)):
+        joints.append(ep.revolute_joint(F, 0.05, ax = np.array([0,0,1]), lenBot=0.15, lenTop=0.15, parent = parent))
+        joints[ii].setTransform(Tj_num[ii].full())
+        parent = joints[ii]
+
+    F.updateImage()
+    F.show()
+    
+
+
+
+
+def main_debug():
+    x = ca.SX.sym('x')
+
+    T = TtX(x)
+    T_fun = ca.Function('T',[x], [T])
+    Tjac = ca.jacobian(T, x)
+    print(type(Tjac))
 
 if __name__ == "__main__":
-    x = ca.SX.sym('x', 1, 1)
-    expr = (ca.logic_and((x>=0), (x<2)))*5 + (x<0)*2
-    print(expr)
+    # main_integrators()
+    # main_localPOE()
+    # main_globalPOE()
+    main_DH_Stanford()
+    # main_debug()
+
+
     

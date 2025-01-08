@@ -8,26 +8,30 @@ from utils import *
 
 from hypoid_kinematics import *
 from hypoid_functions import *
+from hypoid_utils import *
+from solvers import fsolve_casadi
 
 
-def surface_sampling_casadi(data, member, flank, sampling_size, triplet_guess = None, spreadblade = False):
+
+def surface_sampling_casadi(data, member, flank, sampling_size, triplet_guess = None, spreadblade = False, FW_vec = None):
     n_face = sampling_size[0]
     n_prof = sampling_size[1]
     n_fillet = sampling_size[2]
     HAND = data['SystemData']['HAND']
-    blank_settings = list(assignBlankPar(data, member))
+    blank_settings = list(assign_Blank_Par(data, member))
 
-    tool_settings = assignToolPar(data, member, flank)
+    tool_settings = assign_tool_par(data, member, flank)
 
-    raw_machine_settings = assignMachinePar(data, member, flank)
+    raw_machine_settings = assign_machine_par(data, member, flank)
     if spreadblade:
-        raw_machine_settings = assignMachinePar(data, member, 'concave')
+        raw_machine_settings = assign_machine_par(data, member, 'concave')
 
     if triplet_guess is None:
         triplet_guess = initial_guess_from_data(data, member, flank)
     
     common_field_name, sub_common_field_name = get_data_field_names(member, flank, fields='common')
     if member.lower() == 'gear' and data[common_field_name][f'{sub_common_field_name}GenType'].lower() == 'formate':
+        raise Exception("Formate sampling not yet implemented")
         return # TO DO: tooth_sampling_casadi_formate()
     else:
         surfVars, filletVars, points, normals, pointsFillet, normalsFillet, pointsRoot, normalsRoot, rootVars, pointsBounds, normalsBounds =\
@@ -39,22 +43,6 @@ def surface_sampling_casadi(data, member, flank, sampling_size, triplet_guess = 
     n_tool = n_tool_fun(tool_settings, reduce_2d(surfVars[0:2])).full().reshape((3, surfVars.shape[1], surfVars.shape[2]))
 
     z_tool = p_tool[2,:,:].reshape(-1,).min()
-
-    import matplotlib.pyplot as plt
-
-    X = points[0,:].reshape(n_face, -1, order = 'F')
-    Y = points[1,:].reshape(n_face, -1, order = 'F')
-    Z = points[2,:].reshape(n_face, -1, order = 'F')
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.plot_surface(X, Y, Z)
-
-    ax.set_xlabel('X (mm)')
-    ax.set_ylabel('Y (mm)')
-    ax.set_zlabel('Z (mm)')
-    ax.set_aspect('equal', adjustable='box')
-
-    plt.show()
 
     return points, normals, p_tool, n_tool, surfVars, z_tool, pointsFillet, pointsRoot, normalsRoot, rootVars, pointsBounds, normalsBounds
 
@@ -174,7 +162,7 @@ def tooth_sampling_casadi(machine_settings, tool_settings, blank_settings, membe
         guess = surface_sol[1:, ii, 0]
 
         for kk in range(1, n_fillet): # first row is the root line
-            csi_value = csi_edge_blade*(kk)/(n_fillet-1)
+            csi_value = csi_edge_blade*(kk)/(n_fillet)
             result = solver_flank(x0 = guess, p = ca.vertcat(csi_value[0], c_value))
             sol = result['x'].full()
             surface_sol[:, ii, kk] = np.r_[csi_value, sol].flatten()
@@ -184,13 +172,14 @@ def tooth_sampling_casadi(machine_settings, tool_settings, blank_settings, membe
 
         if ii == 1: # the first profile line will brute force the sampling to obtain the head guess solution
             p =  p_gear_fun(flank_fillet_sol[0:3, ii])
-            jj = n_fillet-1
+            jj = n_fillet
             guess_head = guess
+            guess_head[1] = 0
             R = ca.sqrt(p[0]**2 + p[1]**2).full()
             z = p[2].full()
-            # we check if either we pass the z value or the radial value. It depends on the value of the face angle which one we pass first
-            while (front_angle*180/np.pi>70)*(z >= z_head) or (front_angle*180/np.pi<=70)*(R <= R_head):
-                csi_value = csi_edge_blade*(jj)/(50)
+            # we check if either we pass the z value or the radial value. It depends on the value of the face angle
+            while (front_angle*180/np.pi>45)*(z >= z_head) or (front_angle*180/np.pi<=45)*(R <= R_head):
+                csi_value = csi_edge_blade*(jj)/(20)
                 sol = fsolve(lambda x, csi, c: flank_sys_fun(x, csi, c).full().squeeze(),\
                                fprime = lambda x, csi, c: flank_sys_jacobian_fun(x, csi, c).full().squeeze(),\
                                x0 = guess_head,\
@@ -274,6 +263,191 @@ def tooth_sampling_casadi(machine_settings, tool_settings, blank_settings, membe
 
     return surfVars, filletVars, points, normals, pointsFillet, normalsFillet, pointsRoot, normalsRoot, rootVars, pointsBounds, normalsBounds
 
+def surface_from_rz_casadi_formate(R, Z, data, member, flank, triplet_guess):
+    system_hand = data['SystemData']['HAND']
 
-def zRsample(z, R, data):
+    # Kinematics definition 
+    machine_par_matrix = assign_machine_par(data, member, 'concave')
+
+    ggt, Vgt, Vgt_spatial = casadi_machine_kinematics(member, system_hand)
+    G = ca.full(ggt(machine_par_matrix, 0))
+
+    # Tool definition
+    toolvec = assign_tool_par(data, member, flank)
+    toolvec = np.concatenate(toolvec)  # Convert list of arrays to a single array
+    pT, nT = casadi_tool_fun(flank)
+
+    # Define the system function
+    def system(x, R, Z):
+        p_tool = np.concatenate([pT(toolvec, [x[0], x[1]]), [1]])
+        pg = G @ p_tool  # Matrix multiplication
+        out = ca.vertcat(
+            pg[0]**2 + pg[1]**2 - R**2,
+            pg[2]**2 - Z**2,
+        )
+        return out
+    
+    # Define symbolic variables
+    csi = ca.SX.sym('csi')
+    theta = ca.SX.sym('theta')
+    z_sym = ca.SX.sym('z')
+    R_sym = ca.SX.sym('R')
+
+    expr = system(ca.SX.vertcat(csi, theta), R_sym, z_sym)
+
+    problem_rootfinder = {'x': ca.SX.vertcat(csi, theta), 'p': ca.SX.vertcat(R_sym, z_sym), 'g': expr}
+    SolverRoot = ca.rootfinder('solver', 'newton', problem_rootfinder, {'error_on_fail': False})
+
+    # Instantiate Ipopt solver in case rootfinder fails
+    options_ipopt = IPOPT_global_options()
+    options_ipopt['ipopt']['nlp_scaling_method'] = 'gradient-based'
+
+    problem_ipopt = {'x': ca.SX.vertcat(csi, theta), 'p': ca.SX.vertcat(R_sym, z_sym), 'f': 0.5 * expr.T @ expr}
+    SolverIpopt = ca.nlpsol('S', 'ipopt', problem_ipopt, options_ipopt)
+
+    r, c = Z.shape
+    xyzbase = np.full((4, r, c), np.nan)
+    normalsbase = np.full((4, r, c), np.nan)
+    triplets = np.full((3, r, c), 0)
+
+    if not triplet_guess:
+        guess = initial_guess_from_data(data, member, flank)
+
+    for ii in range(r):
+        for jj in range(c):
+            if triplet_guess:
+                if isinstance(triplet_guess, list):  # Check if it's a list
+                    triplet_interp = triplet_guess
+                    csi = triplet_interp[0](Z[ii, jj], R[ii, jj])
+                    theta = triplet_interp[1](Z[ii, jj], R[ii, jj])
+                    phi = triplet_interp[2](Z[ii, jj], R[ii, jj])
+                    guess = np.array([csi, theta, phi])
+                elif triplet_guess.ndim == 1:
+                    guess = triplet_guess[:, 0]
+                else:
+                    guess = triplet_guess[:, ii, jj]
+
+            guess = guess[0:2]
+            # Trying with the findroot Newton solver
+            try:
+                res = SolverRoot(x0=guess[0:2], p=np.array([R[ii, jj], Z[ii, jj]]))
+                res = ca.full(res['x']).T
+            except Exception:
+                res = SolverIpopt(x0=guess[0:2], p=np.array([R[ii, jj], Z[ii, jj]]),
+                                  ubx=guess + np.array([5, np.pi, np.pi]),
+                                  lbx=guess * np.array([0, 1, 1]) - np.array([0, np.pi, np.pi]))
+                res = ca.full(res['x']).T
+
+            triplets[0:2, ii, jj] = res[0:2]
+            xyzbase[:, ii, jj] = G @ ca.full(np.concatenate([pT(toolvec, [res[0], res[1]]), [1]]))
+            normalsbase[:, ii, jj] = G @ ca.full(np.concatenate([nT(toolvec, [res[0], res[1]]), [0]]))
+
+            if not triplet_guess:
+                guess = triplets[0:2, ii, jj]
+
+    return xyzbase, normalsbase, triplets
     return
+    
+def surface_from_rz_casadi(R, Z, data, member, flank, triplet_guess = None, sb_machine = False):
+
+    if data['GearCommonData']['GenType'].lower() == 'formate' and member == 'gear':
+        return surface_from_rz_casadi_formate(R, Z, data, member, flank, triplet_guess)
+
+    system_hand = data['SystemData']['HAND']
+
+    # Kinematics definition
+    if sb_machine:
+        machine_par_matrix = assign_machine_par(data, member, 'concave')
+    else:
+        machine_par_matrix = assign_machine_par(data, member, flank)
+
+    ggt, Vgt, Vgt_spatial = casadi_machine_kinematics(member, system_hand)
+
+    # Tool definition
+    toolvec = assign_tool_par(data, member, flank)
+    toolvec = np.concatenate(toolvec)  # Convert list of arrays to a single array
+    pT, nT = casadi_tool_fun(flank)
+
+    # Define the system function
+    def system(x, R, Z):
+        p_tool = np.concatenate([pT(toolvec, [x[0], x[1]]), [1]])
+        n_tool = np.concatenate([nT(toolvec, [x[0], x[1]]), [0]])
+        px = x[3:6]
+        nx = x[6:9]
+        pg = ggt(machine_par_matrix, x[2]) @ p_tool  # Matrix multiplication
+        ng = ggt(machine_par_matrix, x[2]) @ n_tool  # Matrix multiplication
+        out = ca.vertcat(
+            pg[0]**2 + pg[1]**2 - R**2,
+            pg[2]**2 - Z**2,
+            ng.T @ Vgt_spatial(machine_par_matrix, x[2]) @ pg,
+            pg[0:3] - px,
+            ng[0:3] - nx
+        )
+        return out
+
+    # Define symbolic variables
+    csi = ca.SX.sym('csi')
+    theta = ca.SX.sym('theta')
+    phi = ca.SX.sym('phi')
+    z_sym = ca.SX.sym('z')
+    R_sym = ca.SX.sym('R')
+    p_sym = ca.SX.sym('p', 3, 1)
+    n_sym = ca.SX.sym('n', 3, 1)
+
+    expr = system(ca.SX.vertcat(csi, theta, phi, p_sym, n_sym), R_sym, z_sym)
+
+    problem_rootfinder = {'x': ca.SX.vertcat(csi, theta, phi, p_sym, n_sym), 'p': ca.SX.vertcat(R_sym, z_sym), 'g': expr}
+    SolverRoot = ca.rootfinder('solver', 'newton', problem_rootfinder, {'error_on_fail': False})
+
+    # Instantiate Ipopt solver in case rootfinder fails
+    options_ipopt = IPOPT_global_options()
+    options_ipopt['ipopt']['nlp_scaling_method'] = 'gradient-based'
+
+    problem_ipopt = {'x': ca.SX.vertcat(csi, theta, phi, p_sym, n_sym), 'p': ca.SX.vertcat(R_sym, z_sym), 'f': 0.5 * expr.T @ expr}
+    SolverIpopt = ca.nlpsol('S', 'ipopt', problem_ipopt, options_ipopt)
+
+    r, c = Z.shape
+    xyzbase = np.full((4, r, c), np.nan)
+    normalsbase = np.full((4, r, c), np.nan)
+    triplets = np.full((3, r, c), np.nan)
+
+    if not triplet_guess:
+        guess = initial_guess_from_data(data, member, flank)
+
+    for ii in range(r):
+        for jj in range(c):
+            if triplet_guess:
+                if isinstance(triplet_guess, list):  # Check if it's a list
+                    triplet_interp = triplet_guess
+                    csi = triplet_interp[0](Z[ii, jj], R[ii, jj])
+                    theta = triplet_interp[1](Z[ii, jj], R[ii, jj])
+                    phi = triplet_interp[2](Z[ii, jj], R[ii, jj])
+                    guess = np.array([csi, theta, phi])
+                elif triplet_guess.ndim == 1:
+                    guess = triplet_guess[:, 0]
+                else:
+                    guess = triplet_guess[:, ii, jj]
+
+            # Trying with the findroot Newton solver
+            G_num = ggt(guess[2])
+            p_num = G_num @ np.concatenate([pT(toolvec, [guess[0], guess[1]]), [1]])
+            n_num = G_num @ np.concatenate([nT(toolvec, [guess[0], guess[1]]), [0]])
+
+            guess_sparse = np.concatenate([guess, p_num[0:3], n_num[0:3]])
+            try:
+                res = SolverRoot(x0=guess_sparse, p=np.array([R[ii, jj], Z[ii, jj]]))
+                res = ca.full(res['x']).T
+            except Exception:
+                res = SolverIpopt(x0=guess_sparse, p=np.array([R[ii, jj], Z[ii, jj]]),
+                                  ubx=guess + np.array([5, np.pi, np.pi]),
+                                  lbx=guess * np.array([0, 1, 1]) - np.array([0, np.pi, np.pi]))
+                res = ca.full(res['x']).T
+
+            triplets[:, ii, jj] = res[0:3]
+            xyzbase[:, ii, jj] = ca.full(ggt(res[2]) @ np.concatenate([pT(toolvec, [res[0], res[1]]), [1]]))
+            normalsbase[:, ii, jj] = ca.full(ggt(res[2]) @ np.concatenate([nT(toolvec, [res[0], res[1]]), [0]]))
+
+            if not triplet_guess:
+                guess[:] = triplets[:, ii, jj]
+
+    return xyzbase, normalsbase, triplets
