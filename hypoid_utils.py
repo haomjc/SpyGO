@@ -2,6 +2,7 @@ import numpy as np
 import casadi as ca
 from casadi.casadi import exp
 from scipy.optimize import fsolve
+from scipy.sparse import lil_matrix, bmat
 from math import sqrt, pi, atan, cos, sin, acos, asin, tan
 import screwCalculus as sc
 from utils import *
@@ -462,6 +463,52 @@ def initialize_design_data(): # return designData
 
     return designData
 
+def machine_settings_index():
+    
+    dict = {
+        'RADIALSETTING': 0,
+        'TILTANGLE': 1,
+        'SWIVELANGLE': 2,
+        'BLANKOFFSET': 3,
+        'SLIDINGBASE': 4,
+        'CRADLEANGLE': 5,
+        'INDEXANGLE': 6,
+        'MACHCTRBACK': 7,
+        'ROOTANGLE': 8,
+        'R1': 9, 'R2': 18, 'R3': 27, 'R4': 36, 'R5': 45, 'R6': 54, 'R7': 63,
+        'SIGMA1': 10, 'SIGMA2': 19, 'SIGMA3': 28, 'SIGMA4': 37, 'SIGMA5': 46, 'SIGMA6': 55, 'SIGMA7': 64,
+        'ZETA1': 11, 'ZETA2': 20, 'ZETA3': 29, 'ZETA4': 38, 'ZETA5': 47, 'ZETA6': 56, 'ZETA7': 65,
+        'V1': 12, 'V2': 21, 'V3': 30, 'V4': 39, 'V5': 48, 'V6': 57, 'V7': 66,
+        'H1': 13, 'H2': 22, 'H3': 31, 'H4': 40, 'H5': 49, 'H6': 58, 'H7': 67,
+        'Q1': 14, 'Q2': 23, 'Q3': 32, 'Q4': 41, 'Q5': 50, 'Q6': 59, 'Q7': 68,
+        'RATIOROLL': 15, 'C2': 24, 'D6': 33, 'E24': 42, 'F120': 51, 'G720': 60, 'H5040': 69,
+        'D1': 16, 'D2': 25, 'D3': 34, 'D4': 43, 'D5': 52, 'D6': 61, 'D7': 70,
+        'GAMMA1': 17, 'GAMMA2': 26, 'GAMMA3': 35, 'GAMMA4': 44, 'GAMMA5': 53, 'GAMMA6': 62, 'GAMMA7': 71,
+        'POINTRADIUS': 72, 'SPHERICALRADIUS': 73, 'EDGERADIUS': 74, 'TOPREMRADIUS' : 75, 'FLANKREMRADIUS' : 76,
+        'BLADEANGLE': 77, 'TOPREMDEPTH': 78, 'FLANKREMDEPTH': 79, 'TOPREMANGLE': 80, 'FLANKREMANGLE': 81
+    }
+
+    return dict
+
+def interpolated_triplets_zR(interpolant, z, R):
+    """
+    Generate interpolated triplets for given z and R using provided interpolant functions.
+    Parameters:
+    interpolant (dict): A dictionary containing interpolation functions for 'csi', 'theta', and 'phi'.
+    z (array-like): An array of z values.
+    R (array-like): An array of R values.
+    Returns:
+    numpy.ndarray: A 2D array of shape (3, max(z.shape)) containing interpolated values for 'csi', 'theta', and 'phi'.
+    z and R need to be either 1D arrays or 2D arrays with the same shape.
+    """
+
+    triplets = np.full((3, max(z.shape)), np.nan)
+    triplets[0,:] = interpolant['csi'](z, R)
+    triplets[1,:] = interpolant['theta'](z, R)
+    triplets[2,:] = interpolant['phi'](z, R)
+
+    return triplets
+
 def main(): # main function for scripting debug
     # designData = initialize_design_data()
     # dictprint(designData)
@@ -474,6 +521,139 @@ def main(): # main function for scripting debug
     for ii in range(0,4):
         subprocess.Popen(["python.exe"], shell=True) 
 
+def rz_to_grid(zstar, Rstar, zRBounds, method = 1):
+    """
+    Maps given z and R coordinates to a grid using shape functions.
+    Parameters:
+    zstar (array-like): The z-coordinates to be mapped.
+    Rstar (array-like): The R-coordinates to be mapped.
+    zRBounds (array-like): A 2D array containing the boundary coordinates for z and R (the four corners).
+    options (dict, optional): A dictionary containing options for the mapping method. 
+                              Default is {'type': 1}. If 'type' is 1, it maps to a grid with bounds between -1 and 1.
+                              If 'type' is 2, it maps to a grid with bounds between 0 and 1.
+    Returns:
+    tuple: A tuple containing two arrays (u, v) which are the mapped coordinates on the grid.
+    """
+
+    R1, R2, R3, R4 = zRBounds[:, 1]
+    z1, z2, z3, z4 = zRBounds[:, 0]
+
+    # Define shape functions and their derivatives based on the method
+    if method == 1:
+        N1 = lambda u, v: 0.25 * (1 - v) * (1 - u)
+        N2 = lambda u, v: 0.25 * (1 - v) * (1 + u)
+        N3 = lambda u, v: 0.25 * (1 + v) * (1 + u)
+        N4 = lambda u, v: 0.25 * (1 + v) * (1 - u)
+
+        N1_du = lambda u, v: -0.25 * (1 - v)
+        N2_du = lambda u, v: +0.25 * (1 - v)
+        N3_du = lambda u, v: +0.25 * (1 + v)
+        N4_du = lambda u, v: -0.25 * (1 + v)
+
+        N1_dv = lambda u, v: -0.25 * (1 - u)
+        N2_dv = lambda u, v: -0.25 * (1 + u)
+        N3_dv = lambda u, v: +0.25 * (1 + u)
+        N4_dv = lambda u, v: +0.25 * (1 - u)
+    else:
+        N1 = lambda u, v: (v - 1) * (u - 1)
+        N2 = lambda u, v: u * (1 - v)
+        N3 = lambda u, v: u * v
+        N4 = lambda u, v: v * (1 - u)
+
+        N1_du = lambda u, v: (v - 1)
+        N2_du = lambda u, v: (1 - v)
+        N3_du = lambda u, v: +v
+        N4_du = lambda u, v: -v
+
+        N1_dv = lambda u, v: (u - 1)
+        N2_dv = lambda u, v: -u
+        N3_dv = lambda u, v: +u
+        N4_dv = lambda u, v: (1 - u)
+
+    r, c = np.shape(np.atleast_1d(zstar))
+
+    def obj(x, output = 'fun'):
+        u_val = x[:len(x) // 2]
+        v_val = x[len(x) // 2:]
+
+        N1_ev = N1(u_val, v_val)
+        N2_ev = N2(u_val, v_val)
+        N3_ev = N3(u_val, v_val)
+        N4_ev = N4(u_val, v_val)
+
+        fun = np.concatenate([
+            N1_ev * z1 + N2_ev * z2 + N3_ev * z3 + N4_ev * z4 - zstar.flatten(),
+            N1_ev * R1 + N2_ev * R2 + N3_ev * R3 + N4_ev * R4 - Rstar.flatten()
+        ])
+
+        if output.lower() == 'fun':
+            return fun
+        
+        N1_du_ev = N1_du(u_val, v_val)
+        N2_du_ev = N2_du(u_val, v_val)
+        N3_du_ev = N3_du(u_val, v_val)
+        N4_du_ev = N4_du(u_val, v_val)
+
+        N1_dv_ev = N1_dv(u_val, v_val)
+        N2_dv_ev = N2_dv(u_val, v_val)
+        N3_dv_ev = N3_dv(u_val, v_val)
+        N4_dv_ev = N4_dv(u_val, v_val)
+        
+        derU = np.concatenate([
+            N1_du_ev * z1 + N2_du_ev * z2 + N3_du_ev * z3 + N4_du_ev * z4,
+            N1_du_ev * R1 + N2_du_ev * R2 + N3_du_ev * R3 + N4_du_ev * R4
+        ])
+
+        derV = np.concatenate([
+            N1_dv_ev * z1 + N2_dv_ev * z2 + N3_dv_ev * z3 + N4_dv_ev * z4,
+            N1_dv_ev * R1 + N2_dv_ev * R2 + N3_dv_ev * R3 + N4_dv_ev * R4
+        ])
+
+        block1 = lil_matrix((r, r))
+        block2 = block1.copy()
+        block3 = block1.copy()
+        block4 = block1.copy()
+
+        block1.setdiag(derU[:len(derU) // 2])
+        block2.setdiag(derU[len(derU) // 2:])
+        block3.setdiag(derV[:len(derV) // 2])
+        block4.setdiag(derV[len(derV) // 2:])
+
+        Jac = bmat([[block1, block3], [block2, block4]])
+
+        return Jac
+
+    # Initial guess
+    guessU = np.zeros(r)
+    guessV = np.zeros(r)
+
+    sol = fsolve(lambda x: obj(x, output='fun'), np.concatenate([guessU, guessV]), xtol=1e-8, fprime=lambda x: obj(x, output = 'jac'))
+
+    u = sol[:len(sol) // 2]
+    v = sol[len(sol) // 2:]
+
+    return u, v
+
+def grid_to_rz(u, v, zR_bounds, method = 1):
+    # Define shape functions and their derivatives based on the method
+    if method == 1: #shape functions defined for -1 to 1
+        N1 = 0.25 * (1 - v) * (1 - u)
+        N2 = 0.25 * (1 - v) * (1 + u)
+        N3 = 0.25 * (1 + v) * (1 + u)
+        N4 = 0.25 * (1 + v) * (1 - u)
+    else: #shape functions defined for 0 to 1
+        N1 = (v - 1) * (u - 1)
+        N2 = u * (1 - v)
+        N3 = u * v
+        N4 = v * (1 - u)
+
+    R1, R2, R3, R4 = zR_bounds[:, 1]
+    z1, z2, z3, z4 = zR_bounds[:, 0]
+
+    z = N1 * z1 + N2 * z2 + N3 * z3 + N4 * z4
+    R = N1 * R1 + N2 * R2 + N3 * R3 + N4 * R4
+
+    return z, R
 
 if __name__ == '__main__':
     main()

@@ -6,6 +6,7 @@ from scipy.optimize import fsolve
 from math import sqrt, pi, atan, cos, sin, acos, asin, tan
 from utils import *
 from hypoid_utils import *
+from numba import jit
 
 """
 This package encloses the basic functions related to the gleason's facemilling hypoid generator kinematics.
@@ -506,7 +507,7 @@ def gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha):
 
     Tpg = lambda phiG, phiP: sc.FWkin_globalPOE(Tpg0, np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))
     Vpg_g = lambda phiG, phiP, phiPdot, phiGdot: sc.hat(sc.bodyJac_globalPOE(Tpg0, np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))@np.array([phiPdot, phiGdot]))
-    Vpg_p = lambda phiG, phiP, phiPdot, phiGdot: sc.hat(sc.spatialJac_globalPOE(Tpg0, np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))@np.array([phiPdot, phiGdot]))
+    Vpg_p = lambda phiG, phiP, phiPdot, phiGdot: sc.hat(sc.spatialJac_globalPOE(np.c_[twistP, twistG], np.array([phiP, phiG]), np.array([0,0]))@np.array([phiPdot, phiGdot]))
     
     Tfp0 = sc.TtZ(-P)
     Tfg0 = sc.TtY((offset+E)*s)@sc.TrotY(SIGMA+alpha)@sc.TtZ(G)@sc.TrotZ(np.pi)
@@ -521,12 +522,7 @@ def main():
     offset = 20
     hand = 'right'
     
-
     Tpg, Vpg_g, Tfp, Tfg, Vpg_p = gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha)
-
-    # print(Tpg(0,0))
-    # print(Vpg_g(1,1,1,1))
-    # print(Tfg(1))
 
 if __name__ == '__main__':
     main()

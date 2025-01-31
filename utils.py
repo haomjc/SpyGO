@@ -34,9 +34,8 @@ class Waitbar:
         Closes the Tkinter window.
     """
 
-    def __init__(self, total_steps, title="Progress"):
-        self.total_steps = total_steps
-        self.current_step = 0
+    def __init__(self, step, title="Progress", text="Processing..."):
+        self.current_step = step
         
         # Create a Tkinter window
         self.window = tk.Tk()
@@ -45,13 +44,13 @@ class Waitbar:
         self.window.resizable(False, False)
         
         # Create a label
-        self.label = tk.Label(self.window, text="Processing...", anchor="center")
+        self.label = tk.Label(self.window, text=text, anchor="center")
         self.label.pack(pady=10)
         
         # Create a progress bar
         self.progress = ttk.Progressbar(self.window, orient="horizontal", length=300, mode="determinate")
         self.progress.pack(pady=10)
-        self.progress["maximum"] = total_steps
+        self.progress["maximum"] = 100
         
         # Update the GUI to show the window
         self.window.update()

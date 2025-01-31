@@ -14,6 +14,7 @@ original implementation from Prof. Marco Gabiccini in a Mathematica package
 from casadi.casadi import exp
 import numpy as np
 import casadi as ca
+import solvers as sl
 #from math import sin, cos
 
 # notes:
@@ -561,6 +562,7 @@ def DHJac(T0j, joint_type, joint_index = None, base_offset = np.eye(4), end_offs
     return Jac
 
     return
+
 def toSO3(R):
     """
     Returns the projection of a 3x3 matrix to SO(3) (antysym orthogonal)
@@ -684,6 +686,59 @@ def RK4_step(x, u, xdot, dt, Nsteps = 1):
         a4 = xdot(x + h*a3, u)
         return x + h/6*(a1+ 2*a2 + 2*a3 + a4)
     
+def RK4_step_parametric(x, u, xdot, dt, Nsteps = 1, parameters = None):
+
+    h = dt/Nsteps
+
+    for ii in range(0, Nsteps):
+        a1 = xdot(x, u, parameters)
+        a2 = xdot(x + h/2*a1, u, parameters)
+        a3 = xdot(x + h/2*a2, u, parameters)
+        a4 = xdot(x + h*a3, u, parameters)
+        return x + h/6*(a1+ 2*a2 + 2*a3 + a4)
+
+def RK4_step_implicit(x, u, xdot, dt, k_guess = None):
+    """
+    Perform a single step of the implicit Runge-Kutta 4th-order (Gauss-Legendre) method
+    for autonomous systems (where f does not depend on time).
+
+    Parameters:
+        f: Function defining the ODE system, dy/dt = f(y).
+        yn: Current solution value.
+        h: Step size.
+
+    Returns:
+        y_next: Solution at the next time step.
+    """
+    # Coefficients for Gauss-Legendre RK4
+    c1 = 0.5 - np.sqrt(3) / 6
+    c2 = 0.5 + np.sqrt(3) / 6
+    a11 = 0.25
+    a12 = 0.25 - np.sqrt(3) / 6
+    a21 = 0.25 + np.sqrt(3) / 6
+    a22 = 0.25
+    b1 = 0.5
+    b2 = 0.5
+
+    # Define the system of equations for k1 and k2
+    def equations(k):
+        k1, k2 = k
+        eq1 = k1 - xdot(x + dt * (a11 * k1 + a12 * k2), u)
+        eq2 = k2 - xdot(x + dt * (a21 * k1 + a22 * k2), u)
+        return [eq1, eq2]
+
+    if k_guess is None:
+        y = xdot(x,u)
+        k_guess = [y, y]  # Explicit Euler guess
+
+    # Solve for k1 and k2 using a nonlinear solver
+    k1, k2 = fsolve(equations, k_guess)
+
+    # Update the solution
+    y_next = x + dt * (b1 * k1 + b2 * k2)
+
+    return y_next
+
 def RK4(x_expr, u_expr, xdot_expr, x0, t0, t_end, dt, u_in, Nsteps = 1, t_expr = None):
     """
     helper
@@ -878,25 +933,19 @@ def main_DH_Stanford():
 
     F.updateImage()
     F.show()
-    
-
-
-
 
 def main_debug():
-    x = ca.SX.sym('x')
-
-    T = TtX(x)
-    T_fun = ca.Function('T',[x], [T])
-    Tjac = ca.jacobian(T, x)
-    print(type(Tjac))
+    x = np.array([1])
+    print(np.cos(x))
+    R = rotX(x)
+    print(R)
 
 if __name__ == "__main__":
     # main_integrators()
     # main_localPOE()
     # main_globalPOE()
-    main_DH_Stanford()
-    # main_debug()
+    # main_DH_Stanford()
+    main_debug()
 
 
     

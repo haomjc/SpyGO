@@ -1,11 +1,25 @@
-from scipy.optimize import fsolve # fsolve(f, x0=x0, fprime=jacobian)
+from scipy.optimize import fsolve, root # fsolve(f, x0=x0, fprime=jacobian)
 import casadi as ca
 import time
 from numba import njit
+import numpy as np
 
-def fsolve_casadi(casadi_obj, sym_x, sym_p, x0, p, jac_fun = None):
+def fsolve_casadi(casadi_obj, sym_x, sym_p, x0, p, jac_fun = None, solver = None):
     """
-    automatic interface between casadi's expression and scipy's fsolve 
+    Solve a system of nonlinear equations using CasADi and SciPy solvers.
+    Parameters:
+    casadi_obj (ca.SX or ca.MX or callable): The CasADi symbolic expression or function representing the system of equations.
+    sym_x (ca.SX or ca.MX): The symbolic variable for the unknowns.
+    sym_p (ca.SX or ca.MX): The symbolic variable for the parameters.
+    x0 (array-like): Initial guess for the solution.
+    p (array-like): Parameters for the system of equations.
+    jac_fun (callable, optional): Function to compute the Jacobian of the system. If None, the Jacobian is computed automatically.
+    solver (str, optional): The solver method to use ('hybr', 'lm', 'broyden1', etc.). If None, `fsolve` is used.
+    Returns:
+    tuple: A tuple containing:
+        - sol (array-like): The solution to the system of equations.
+        - jac (ca.Function): The CasADi function representing the Jacobian.
+        - fun (ca.Function): The CasADi function representing the system of equations.
     """
     jac = jac_fun
     fun = casadi_obj
@@ -20,10 +34,13 @@ def fsolve_casadi(casadi_obj, sym_x, sym_p, x0, p, jac_fun = None):
     f = lambda x, p: fun(x, p).full().squeeze(-1)
     j = lambda x, p: jac(x, p).full().squeeze(-1)
 
-    sol = fsolve(f, x0 = x0, fprime=j, args = p)
+    if solver is None:
+        sol = fsolve(f, x0 = x0, fprime=j, args = p)
+    else:
+        sol = root(f, x0 = x0, jac=j, args = p, method = solver)
     return sol, jac, fun
 
-import numpy as np
+
 
 def pattern_search(func, x0,
                     step_size = 1.0,
@@ -126,14 +143,13 @@ def main():
     print(rosenbrock(x0))
 
     # Run the pattern search
-    start_time = time.perf_counter()
+    start_time = time.perf_counter() # 
     result, fval = pattern_search(rosenbrock, x0, display='off')
     end_time = time.perf_counter()
 
     execution_time = end_time - start_time
     print(execution_time)
-
-
+    
 if __name__ == "__main__":
     main()
 

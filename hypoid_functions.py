@@ -4,7 +4,7 @@ import casadi as ca
 from scipy.optimize import fsolve
 from math import sqrt, pi, atan, cos, sin, acos, asin, tan
 from utils import *
-
+from solvers import *
 
 # import our packages
 from hypoid_kinematics import *
@@ -857,7 +857,22 @@ def rz_boundaries_computation(data, member):
     )
     return data, P_center, zR
 
-def PCA_computation(data, member, side, EPGalpha, boundary_points, boundary_points_other, n_face, n_prof):
+def PCA_computation(data, member, side, EPGalpha, boundary_points, boundary_points_other, n_face):
+    """
+    Perform PCA (Potential Contact Area) computation for hypoid gears.
+    Parameters:
+    data (dict): Dictionary containing system data and gear parameters.
+    member (str): Specifies whether the member is 'gear' or 'pinion'.
+    side (str): Specifies the side of the gear, either 'drive' or 'coast'.
+    EPGalpha (float): Angle parameter for the PCA computation.
+    boundary_points (tuple): Tuple containing boundary points and normals for the member.
+    boundary_points_other (tuple): Tuple containing boundary points and normals for the other member.
+    n_face (int): Number of face points.
+    n_prof (int): Number of profile points.
+    Returns:
+    np.ndarray: Transformed points in the other member's coordinate system.
+    """
+
     pinion_common, pinion_sub_common = get_data_field_names('pinion', 'concave', fields = 'common')
     gear_common, gear_sub_common = get_data_field_names('gear', 'concave', fields = 'common')
     offset = data['SystemData']['hypoidOffset']
@@ -867,21 +882,33 @@ def PCA_computation(data, member, side, EPGalpha, boundary_points, boundary_poin
     nP = data[pinion_common][f'{pinion_sub_common}NTEETH']
     nG = data[gear_common][f'{gear_sub_common}NTEETH']
 
+    points_other = np.hstack(boundary_points_other[0]) # extracting the edge points and collecting them in a single array
+    points_other = np.vstack((points_other, np.ones(points_other.shape[1])))  # Add row of ones
+    normals_other = np.hstack(boundary_points_other[1])
+    normals_other = np.vstack((normals_other, np.zeros(normals_other.shape[1])))  # Add row of zeros
+
     if member.lower() == 'gear':
         otherFlank = 'concave' if side.lower() == 'drive' else 'convex'
         otherMember = 'pinion'
 
-        points_other = boundary_points_other[0]
-        points_other = np.vstack((points_other, np.ones(points_other.shape[1])))  # Add row of ones
-        normalsOther = boundary_points_other[1]
-        normalsOther = np.vstack((normalsOther, np.zeros(normalsOther.shape[1])))  # Add row of zeros
 
-        zR = newpinToGearRZ(data, points_other, normalsOther, EPGalpha, guess = 2 * np.pi / nP / 3)
-        points = boundary_points[0]
+        zR = pin_to_gear_rz(data, points_other, normals_other, EPGalpha, guess = 2 * np.pi / nP / 3)
 
+        # check if the sampled face points are inside the gear, otherwise it means we sampled the wrong branch of the envelope
+        """
+                     corner point
+                        |
+          midpoint (A)  | 
+                |       |
+                v       v
+        *-------*-------* <- face points
+        |               |
+        |               |
+        """
+        points = boundary_points[0][2] # extracting the face points
         counter = 0
-        midface = n_face + n_prof - 1 + n_face // 2
-        corner = n_face + n_prof - 1
+        midface = n_face // 2
+        corner = 0
         C = zR[midface, :]
         A3D = points[:3, midface]
         B3D = points[:3, corner]
@@ -890,11 +917,10 @@ def PCA_computation(data, member, side, EPGalpha, boundary_points, boundary_poin
         AB = np.array(B) - np.array(A)
         AC = np.array(C) - np.array(A)
 
-        # Check the condition for alignment
         check = AC[0] * AB[1] - AC[1] * AB[0]
 
         while check < 0:
-            zR = newpinToGearRZ(data, points_other, normalsOther, EPGalpha, guess = -2 * np.pi / nP / 4 - 2 * np.pi / nP / 8 * counter)
+            zR = pin_to_gear_rz(data, points_other, normals_other, EPGalpha, guess = -2 * np.pi / nP / 4 - 2 * np.pi / nP / 8 * counter)
             C = zR[34, :]
             AC = np.array(C) - np.array(A)
             check = AC[0] * AB[1] - AC[1] * AB[0]
@@ -906,22 +932,16 @@ def PCA_computation(data, member, side, EPGalpha, boundary_points, boundary_poin
         otherFlank = 'convex' if side.lower() == 'drive' else 'concave'
         otherMember = 'gear'
 
-        points_other = boundary_points_other[0]
-        points_other = np.vstack((points_other, np.ones(points_other.shape[1])))  # Add row of ones
-        normalsOther = boundary_points_other[1]
-        normalsOther = np.vstack((normalsOther, np.zeros(normalsOther.shape[1])))  # Add row of zeros
-        points = boundary_points[0]
-
-        zR = newgearToPinRz(Data, points_other, normalsOther, EPGalpha, 'guess', 2 * np.pi / 2 / nG)
+        points = boundary_points[0][2] # extracting the face points
+        zR = gear_to_pin_rz(data, points_other, normals_other, EPGalpha, guess = 2 * np.pi / 2 / nG)
 
         if np.min(zR[:, 0]) <= np.min(points[2, :]) * 0.9:
-            zR = newgearToPinRz(Data, points_other, normalsOther, EPGalpha, 'guess', -2 * np.pi / 2 / nG)
+            zR = gear_to_pin_rz(data, points_other, normals_other, EPGalpha, guess = -2 * np.pi / 2 / nG)
 
     zRinOther = zR
     return zRinOther
 
-
-def pin_to_gear_rz(data, points_pinion, normals_pinino, EPGalpha, guess = 0):
+def pin_to_gear_rz(data, points_pinion, normals_pinion, EPGalpha, guess = 0):
     offset = data['SystemData']['hypoidOffset']
     SIGMA = np.deg2rad(data['SystemData']['shaft_angle'])
     u = data['SystemData']['ratio']
@@ -930,9 +950,75 @@ def pin_to_gear_rz(data, points_pinion, normals_pinino, EPGalpha, guess = 0):
     if not EPGalpha or EPGalpha is None:
         EPGalpha = np.array([0, 0, 0, 0])
     
-    Tpg, Vpg, _, _, Vgp = gear_to
+    Tpg, Vpg, _, _, Vgp = gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha)
+    Tgp = lambda phiP, phiG: sc.rigidInverse(Tpg(phiP, phiG))
 
-    return
+    phiG = ca.SX.sym('phiG')
+    p_sym = ca.SX.sym('p', 3, 1)
+    n_sym = ca.SX.sym('n', 3, 1)
+
+    sys_expr = ca.vertcat(n_sym, 0).T @ Vgp(phiG, u*phiG, 1, u) @ ca.vertcat(p_sym, 1)
+    f = sys_expr
+    jacobian = None
+
+    p_gear = np.full((4, points_pinion.shape[1]), np.nan)
+    for ii in range(points_pinion.shape[1]):
+        p = points_pinion[:, ii]
+        n = normals_pinion[:, ii]
+        sol, jacobian, f = fsolve_casadi(f, phiG, ca.vertcat(p_sym, n_sym), guess, ca.vertcat(p[0:3], n[0:3]), jac_fun = jacobian)
+        guess = sol
+        p_gear[:, ii] = Tgp(sol[0], u*sol[0]) @ p
+    
+    Rg = np.sqrt(p_gear[0, :]**2 + p_gear[1, :]**2)
+    zg = p_gear[2, :]
+    
+    return np.c_[zg, Rg]
+
+def gear_to_pin_rz(data, points_gear, normals_gear, EPGalpha, guess = 0):
+    offset = data['SystemData']['hypoidOffset']
+    SIGMA = np.deg2rad(data['SystemData']['shaft_angle'])
+    hand = data['SystemData']['HAND']
+    u = data['SystemData']['ratio']
+
+    if not EPGalpha or EPGalpha is None:
+        EPGalpha = np.array([0, 0, 0, 0])
+    
+    Tpg, Vpg, _, _, _ = gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha)
+
+    phiP = ca.SX.sym('phiP')
+    p_sym = ca.SX.sym('p', 3, 1)
+    n_sym = ca.SX.sym('n', 3, 1)
+
+    sys_expr = ca.vertcat(n_sym, 0).T @ Vpg(phiP, u*phiP, 1, u) @ ca.vertcat(p_sym, 1)
+    f = sys_expr
+    jacobian = None
+
+    p_pinion = np.full((4, points_gear.shape[1]), np.nan)
+    for ii in range(points_gear.shape[1]):
+        p = points_gear[:, ii]
+        n = normals_gear[:, ii]
+        sol, jacobian, f = fsolve_casadi(f, phiP, ca.vertcat(p_sym, n_sym), guess, ca.vertcat(p[0:3], n[0:3]), jac_fun = jacobian)
+        guess = sol
+        p_pinion[:, ii] = Tpg(sol[0], u*sol[0]) @ p
+    
+    Rp = np.sqrt(p_pinion[0, :]**2 + p_pinion[1, :]**2)
+    zp = p_pinion[2, :]
+
+    return np.c_[zp, Rp]
+
+def zr_activeflank_bounds(data, member, flank, zr_fillet):
+
+    common, sub_common = get_data_field_names(member, flank, fields = 'common')
+
+    # root points
+    zr = np.c_[zr_fillet[0, :], zr_fillet[-1, :]]
+
+    #append face points
+    zr = np.vstack((zr, [data[common][f'{sub_common}zFACEHEEL'], data[common][f'{sub_common}RFACEHEEL']]))
+    zr = np.vstack((zr, [data[common][f'{sub_common}zFACETOE'], data[common][f'{sub_common}RFACETOE']]))
+
+    return zr
+
 def main():
 
     SystemData = {

@@ -26,7 +26,7 @@ def surface_sampling_casadi(data, member, flank, sampling_size, triplet_guess = 
     if spreadblade:
         raw_machine_settings = assign_machine_par(data, member, 'concave')
 
-    if triplet_guess is None:
+    if triplet_guess is None or not triplet_guess:
         triplet_guess = initial_guess_from_data(data, member, flank)
     
     common_field_name, sub_common_field_name = get_data_field_names(member, flank, fields='common')
@@ -263,7 +263,7 @@ def tooth_sampling_casadi(machine_settings, tool_settings, blank_settings, membe
 
     return surfVars, filletVars, points, normals, pointsFillet, normalsFillet, pointsRoot, normalsRoot, rootVars, pointsBounds, normalsBounds
 
-def surface_from_rz_casadi_formate(R, Z, data, member, flank, triplet_guess):
+def rz_sampling_casadi_formate(R, Z, data, member, flank, triplet_guess):
     system_hand = data['SystemData']['HAND']
 
     # Kinematics definition 
@@ -348,10 +348,10 @@ def surface_from_rz_casadi_formate(R, Z, data, member, flank, triplet_guess):
     return xyzbase, normalsbase, triplets
     return
     
-def surface_from_rz_casadi(R, Z, data, member, flank, triplet_guess = None, sb_machine = False):
+def rz_sampling_casadi(R, Z, data, member, flank, triplet_guess = None, sb_machine = False):
 
     if data['GearCommonData']['GenType'].lower() == 'formate' and member == 'gear':
-        return surface_from_rz_casadi_formate(R, Z, data, member, flank, triplet_guess)
+        return rz_sampling_casadi_formate(R, Z, data, member, flank, triplet_guess)
 
     system_hand = data['SystemData']['HAND']
 
@@ -451,3 +451,8 @@ def surface_from_rz_casadi(R, Z, data, member, flank, triplet_guess = None, sb_m
                 guess[:] = triplets[:, ii, jj]
 
     return xyzbase, normalsbase, triplets
+
+def rz_sampling_NURBS_casadi(data, member, flank, z, R, triplets):
+
+    raise Exception("NURBS sampling not yet implemented")
+    return 

@@ -1,13 +1,14 @@
 from casadi.casadi import exp
 import numpy as np
-import casadi as ca
-import screwCalculus as sc
+import casadi as ca # for symbolic computations
+import screwCalculus as sc # screwCalculus is a custom module for screw theory computations 
 from hypoid_functions import *
 from hypoid_utils import *
 from hypoid_sampling import *
-from utils import *
-from typing import Literal
-import easy_plot as ep
+from utils import * 
+from typing import Literal # for type hinting
+import easy_plot as ep 
+import matplotlib.pyplot as plt
 
 import copy
 
@@ -39,7 +40,7 @@ class Hypoid:
         self.eqMeshing = copy.deepcopy(template_dictionary)
         self.Point = copy.deepcopy(template_dictionary)   # casadi function
         self.Normal = copy.deepcopy(template_dictionary) # casadi function
-        self.pointsFullBounds = copy.deepcopy(template_dictionary)
+        self.pointsFullBounds = copy.deepcopy(template_dictionary) # it contains the four edges of the flank as arrays in a list
         self.normalsFullBounds = copy.deepcopy(template_dictionary)
 
         # nurbs output
@@ -288,7 +289,7 @@ class Hypoid:
 
             z = p_fillet[2,:]
             R = np.sqrt(p_fillet[0,:]**2 + p_fillet[1,:]**2)
-            self.zRfillet[member][flank] = np.r_[z, R]
+            self.zRfillet[member][flank] = np.c_[z, R]
 
             z = p_root[2,:]
             R = np.linalg.norm(p_root[0:2,:], axis=0)
@@ -304,19 +305,18 @@ class Hypoid:
                 zR.append(np.row_stack((z,R)))
 
             self.zRfullBounds[member][flank] = zR
-            self.pointsFullBounds[member][flank] = p_bounds
-            self.normalsFullBounds[member][flank] = n_bounds
+            self.pointsFullBounds[member][flank] = p_bounds # it is a list of arrays. Each array is a boundary edge. There are 4 edges in total
+            self.normalsFullBounds[member][flank] = n_bounds # same as above
 
             z = p[2,:]
             R = np.linalg.norm(p[0:2,:], axis=0)
-            self.zRfullvec = np.row_stack((z,R))
+            self.zRfullvec[member][flank] = np.row_stack((z,R))
 
             self.interpolate_triplets_over_zr(member, flank, z, R, csi_theta_phi)
 
         if return_output:
             return p, n, z, R, csi_theta_phi
 
-        
         return 
 
     def compute_parameters(self, new_data, FW_vec = None, no_sync = False, triplets = None):
@@ -332,7 +332,7 @@ class Hypoid:
         PCgear = self.zRwithRoot['gear'][3, :]
 
         trip_pin_cnv, trip_pin_cvx, trip_gear_cnv, trip_gear_cvx = [], [], [], []
-        if not not self.init_triplet['pinion']['concave']: # if the initial triplets are not empty
+        if not not self.interpTriplets['pinion']['concave']: # if the initial triplets are not empty
             trip_pin_cnv = [
                 self.interpTriplets['pinion']['concave']['csi'][PCpin[0], PCpin[1]], 
                 self.interpTriplets['pinion']['concave']['theta'][PCpin[0], PCpin[1]],
@@ -358,14 +358,26 @@ class Hypoid:
             ]
 
         # Sampling surfaces and interpolating
-        waitbar = Waitbar(step = 0, title="Generating pinion concave flank")
-        pin_pts_cnv, pin_proot_cnv, pin_nroot_cnv = self.sample_surface('pinion', 'concave', triplet_guess = trip_pin_cnv, FW_vec = FW_vec)
+        waitbar = Waitbar(step = 0, title="Initializating Hypoid", text="Generating pinion concave flank")
+        pin_pts_cnv, pin_proot_cnv, pin_nroot_cnv, _, _ = self.sample_surface('pinion', 'concave',
+                                                                         triplet_guess = trip_pin_cnv,
+                                                                         FW_vec = FW_vec,
+                                                                         return_output=True)
         waitbar.update(step = 25, message="Generating pinion convex flank")
-        pin_pts_cvx, pin_proot_cvx, pin_nroot_cvx = self.sample_surface('pinion', 'convex', triplet_guess = trip_pin_cvx, FW_vec = FW_vec)
+        pin_pts_cvx, pin_proot_cvx, pin_nroot_cvx, _, _ = self.sample_surface('pinion', 'convex',
+                                                                         triplet_guess = trip_pin_cvx,
+                                                                         FW_vec = FW_vec,
+                                                                         return_output=True)
         waitbar.update(step = 50, message="Generating gear concave flank")
-        gear_pts_cnv, gear_proot_cnv, gear_nroot_cnv = self.sample_surface('gear', 'concave', triplet_guess = trip_gear_cnv, FW_vec = FW_vec)
+        gear_pts_cnv, gear_proot_cnv, gear_nroot_cnv, _, _ = self.sample_surface('gear', 'concave',
+                                                                            triplet_guess = trip_gear_cnv,
+                                                                            FW_vec = FW_vec,
+                                                                            return_output=True)
         waitbar.update(step = 75, message="Generating gear convex flank")
-        gear_pts_cvx, gear_proot_cvx, gear_nroot_cvx = self.sample_surface('gear', 'convex', triplet_guess = trip_gear_cvx, FW_vec = FW_vec)
+        gear_pts_cvx, gear_proot_cvx, gear_nroot_cvx, _, _ = self.sample_surface('gear', 'convex',
+                                                                           triplet_guess = trip_gear_cvx,
+                                                                           FW_vec = FW_vec,
+                                                                           return_output=True)
         
         waitbar.update(step = 85, message="PCA computation...")
         # Spacing line between two flanks based on hand
@@ -374,25 +386,29 @@ class Hypoid:
         nTg = self.get_Nteeth('gear')
 
         if hand.lower() == 'right':
-            pin_pts_cnv = self.rot_z(2 * np.pi / nTp).dot(pin_pts_cnv[:3, :])
-            gear_pts_cvx = self.rot_z(2 * np.pi / nTg).dot(gear_pts_cvx[:3, :])
+            pin_pts_cnv = sc.rotZ(2 * np.pi / nTp).dot(pin_pts_cnv[:3, :])
+            gear_pts_cvx = sc.rotZ(2 * np.pi / nTg).dot(gear_pts_cvx[:3, :])
         else:
-            pin_pts_cvx = self.rot_z(2 * np.pi / nTp).dot(pin_pts_cvx[:3, :])
-            gear_pts_cnv = self.rot_z(2 * np.pi / nTg).dot(gear_pts_cnv[:3, :])
+            pin_pts_cvx = sc.rotZ(2 * np.pi / nTp).dot(pin_pts_cvx[:3, :])
+            gear_pts_cnv = sc.rotZ(2 * np.pi / nTg).dot(gear_pts_cnv[:3, :])
 
-        # Compute root and topland spacing
-        self.rootSpacing['pinion'] = (pin_proot_cnv + pin_proot_cvx) * 0.5
-        self.rootSpacing['gear'] = (gear_proot_cnv + gear_proot_cvx) * 0.5
+        # Compute root and topland spacing, needed for FEM meshing
+        setattr(self, 'rootSpacing', {'pinion': (pin_proot_cnv + pin_proot_cvx) * 0.5, 'gear': (gear_proot_cnv + gear_proot_cvx) * 0.5})
 
         nF, nP, nfil = self.nFace, self.nProf, self.nFillet
         pin_pts_cnv = pin_pts_cnv.reshape(3, nF, nP + nfil - 1)[:, :, -1]
         pin_pts_cvx = pin_pts_cvx.reshape(3, nF, nP + nfil - 1)[:, :, -1]
-        self.toplandSpacing['pinion'] = (pin_pts_cnv + pin_pts_cvx) * 0.5
 
         gear_pts_cnv = gear_pts_cnv.reshape(3, nF, nP + nfil - 1)[:, :, -1]
         gear_pts_cvx = gear_pts_cvx.reshape(3, nF, nP + nfil - 1)[:, :, -1]
-        self.toplandSpacing['gear'] = (gear_pts_cnv + gear_pts_cvx) * 0.5
 
+        setattr(self, 'toplandSpacing', {'pinion': (pin_pts_cnv + pin_pts_cvx) * 0.5, 'gear': (gear_pts_cnv + gear_pts_cvx) * 0.5})
+
+        self.zRbounds['pinion']['concave'] = zr_activeflank_bounds(self.designData, 'pinion', 'concave', self.zRfillet['pinion']['concave'])
+        self.zRbounds['pinion']['convex'] = zr_activeflank_bounds(self.designData, 'pinion', 'convex', self.zRfillet['pinion']['convex'])
+        self.zRbounds['gear']['concave'] = zr_activeflank_bounds(self.designData, 'gear', 'concave', self.zRfillet['gear']['concave'])
+        self.zRbounds['gear']['convex'] = zr_activeflank_bounds(self.designData, 'gear', 'convex', self.zRfillet['gear']['convex'])
+        
         # set dictionaries for modified designs (conjugate, easeOff, optimization, spreadBlade, topography)
         for attribute in ['Conjugate', 'EaseOff', 'Optimization', 'SpreadBlade', 'Topography']:
             setattr(self, f'identificationProblem{attribute}', {'designData': self.designData})
@@ -408,10 +424,11 @@ class Hypoid:
         self.compute_synch_angle()
         
         waitbar.update(step = 100, message="Done!")
-        waitbar.close(delay=100)
+        waitbar.close(delay=1)
         return
     
     def compute_PCA(self, member, side, EPGalpha):
+        # Select the correct flank based on the member and side
         if side.lower() == 'drive' and member.lower() == 'pinion':
             flank = 'concave'
             other_flank = 'convex'
@@ -419,9 +436,25 @@ class Hypoid:
             flank = 'convex'
             other_flank = 'concave'
 
-        zR = PCA_computation(self.designData, member, flank, EPGalpha, bounds_points, bounds_points_other)
+        if member.lower() == 'pinion':
+            other_member = 'gear'
+        else:
+            other_member = 'pinion'
+        
+        zR = PCA_computation(self.designData, member, side, EPGalpha,
+                            (self.pointsFullBounds[member][flank], self.normalsFullBounds[member][flank]),
+                            (self.pointsFullBounds[other_member][other_flank], self.normalsFullBounds[other_member][other_flank]),
+                            self.nFace
+                            )
+        
+        # Store the PCA data in the appropriate dictionary
+        self.zRinOther[member][flank] = zR
+        
         return
     
+    def compute_synch_angle(self):
+
+        return
     # getters
     def get_Nteeth(self, member):
         common, sub_common = get_data_field_names(member, 'concave', fields = 'common')
@@ -430,27 +463,108 @@ class Hypoid:
     def get_systemHand(self):
         return self.designData['SystemData']['HAND']
     
+    def get_settings_index(self, machine_settings_names):
+        dict = machine_settings_index()
+        
+        # Normalize the keys to lowercase
+        normalized_dict = {k.lower(): v for k, v in dict.items()}
+
+        # Return the index for each machine setting name if it exists, otherwise return None
+        indexes = [normalized_dict.get(name.lower(), None) for name in machine_settings_names]
+
+        # check if all indexes are valid
+        if None in indexes:
+            raise ValueError("Invalid machine settings name(s) provided")
+        
+        return indexes 
+    
     # setters
 
     # plot
     def plot(self, member = 'pinion', flank = 'concave'):
         
+        # Extract the points for the specified member and flank from the surfPoints dictionary
         points = self.surfPoints[member][flank]
         n_face = self.nFace
 
+        # Create a new figure and plot the points
         F = ep.Figure(title=member+flank)
+
+        # Reshape the points to be 3xN for plotting
         X = points[0,:].reshape(n_face, -1, order = 'F')
         Y = points[1,:].reshape(n_face, -1, order = 'F')
         Z = points[2,:].reshape(n_face, -1, order = 'F')
-        S = ep.surface(F, X,Y,Z)
+
+        # Create a surface plot
+        S = ep.surface(F, X, Y, Z)
 
         F.show()
         return
     
-    def buildCasadiDerivatives(self):
+    def plot_zr_bounds(self, member, flank):
+        zr_with_root = self.zRwithRoot[member]
+
+        # append first point to close the loop
+        zr_with_root = np.vstack((zr_with_root, zr_with_root[0,:]))
+
+        zr_activeflank_bounds = self.zRbounds[member][flank]
+        if zr_activeflank_bounds.shape[1] < zr_activeflank_bounds.shape[0]:
+            zr_activeflank_bounds = zr_activeflank_bounds.T
+
+        # Create a new figure with pyplot
+        fig = plt.figure()
+        plt.title(f"{member} {flank} z-R bounds")
+        plt.xlabel("z")
+        plt.ylabel("R")       
+        plt.plot(zr_with_root[:,0], zr_with_root[:, 1], label = "z-R with root")
+        plt.plot(zr_activeflank_bounds[:,0], zr_activeflank_bounds[:,1], label = "Active flank bounds")
+        plt.axis('equal')
+        plt.show()
+
+        return
+
+    def print_settings_names(self):
+
+        # Get the machine settings names
+        names = machine_settings_index()
+
+        # Print dictionary keys
+        print("Valid machine settings names:")
+        for name in names:
+            print(name)
+
         return
     
-    def samplezR(self):
+    def buildCasadiDerivatives(self):
+        # build the casadi functions for the surface points and normals
+        return
+    
+    def samplezR(self, z, R, member, flank, triplets, data_type = 'base', SBmachining = False):
+        
+        if not z or z is None:
+            points = self.surfPoints[member][flank]
+            z = points[2,:]
+            R = np.linalg.norm(points[0:2,:], axis=0)
+        
+        if not triplets or triplets is None:
+            triplets = interpolated_triplets_zR(self.interpTriplets[member][flank], z, R)
+            triplets[0, :] = np.maximum(triplets[0, :]-0.2, 0.03)
+        
+        if data_type.lower() == 'base':
+            data = self.designData
+            points, normals, triplets = rz_sampling_casadi(data, member, flank, z, R, triplets)
+        elif data_type.lower() in ['easeoff', 'ease_off']:
+            data = self.identificationProblemEaseOff['designData']
+            points, normals, triplets = rz_sampling_casadi(data, member, flank, z, R, triplets)
+        elif data_type.lower() in ['conjugate', 'conj']:
+            data = self.identificationProblemConjugate['designData']
+            points, normals, triplets = rz_sampling_casadi(data, member, flank, z, R, triplets)
+        elif data_type.lower() in ['opti', 'optimization']:
+            data = self.identificationProblemOptimization['designData']
+            points, normals, triplets = rz_sampling_casadi(data, member, flank, z, R, triplets)
+        elif data_type.lower() in ['nurbs']:
+            points, normals, UV = rz_sampling_NURBS_casadi(data, member, flank, z, R, triplets)
+
         return
     
     

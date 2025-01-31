@@ -152,6 +152,7 @@ def chebyshev_interpolation_casadi(fun, N, funlims):
 
     return P_fun, a, T_fun, fj, Tj
 
+
 def main():
 
     u, v = np.meshgrid(np.linspace(-1,1,10), np.linspace(-1,1,10))

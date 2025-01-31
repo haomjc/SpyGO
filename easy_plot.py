@@ -63,10 +63,21 @@ class Figure:
         self.container.remove(object)
         self.nObjects -= 1
 
-    def show(self):
+    def xlabel(self, label):
+        self.figure.add_text(label, position='lower_edge', font_size=10, color='black')
+
+    def ylabel(self, label):
+        self.figure.add_text(label, position='left_edge', font_size=10, color='black')
+
+    def show(self, planar = False):
         if is_notebook():
+            if planar:
+                self.figure.view_xy()
             self.figure.show(jupyter_backend='static')
+
         else:
+            if planar:
+                self.figure.view_xy()
             self.figure.show(interactive=True, auto_close=False)
 
     def set_scale(self, x_scale, y_scale, z_scale):
@@ -176,7 +187,7 @@ class patch(go):
 
 class line(go):
 
-    def __init__(self, fig, x, y, z = None, color = 'blue', line_width = 10, parent = None) -> None:
+    def __init__(self, fig, x, y, z = None, color = 'black', line_width = 10, parent = None) -> None:
         super().__init__(fig, parent)
         self.XData = x
         self.YData = y
