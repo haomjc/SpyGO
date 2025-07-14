@@ -3,7 +3,7 @@ import screwCalculus as sc
 import numpy as np
 import matplotlib.pyplot as plt
 import pyvista as pv
-from pyvistaqt import BackgroundPlotter
+from   pyvistaqt import BackgroundPlotter
 
 def basis_function(u, p, U):
     """
@@ -29,7 +29,7 @@ def basis_function(u, p, U):
     N = np.zeros((p+1)) # basis vector with non vanishing elements
     left = np.zeros((p+1))
     right = np.zeros((p+1))
-    
+
     N[0] = 1
     for j in range(1, p+1):
         left[j] = u - U[i+1-j]
@@ -76,7 +76,7 @@ def der_basis_fun_i(u, i, p, U, derOrder):
         left = ca.SX(1, p+1)
         right = ca.SX(1, p+1)
     ndu[0, 0] = 1
-    
+
     for j in range(1, p+1):
         left[j] = u - U[i+1-j]
         right[j] = U[i+j] - u
@@ -95,7 +95,7 @@ def der_basis_fun_i(u, i, p, U, derOrder):
         ders = ca.SX(derOrder+1, p+1) # basis matrix with non vanishing elements
         a = ca.SX(2, p+1)
     ders[0, :] = ndu[:, p]
-    
+
     for r in range(0,p+1):
         s1 = 0
         s2 = 1
@@ -105,18 +105,18 @@ def der_basis_fun_i(u, i, p, U, derOrder):
             d = 0
             rk = r - k
             pk = p - k
-            
+
             if r >= k:
                 a[s2, 0] = a[s1, 0]/ndu[pk+1,rk]
                 d = a[s2, 0]*ndu[rk, pk]
-            
+
             if rk >= -1:
                 j1 = 1
             else:
                 j1 = -rk
             if r-1 <= pk:
                 j2 = k-1
-            else: 
+            else:
                 j2 = p-r
 
             for j in range(j1,j2+1):
@@ -196,7 +196,7 @@ def chord_length_nodes(pU, pV, Q):
 
         cds = np.sqrt( np.diff(X[:, ii])**2 + np.diff(Y[:,ii])**2 + np.diff(Z[:,ii])**2 )
         total = np.sum(cds)
-        d = 0; 
+        d = 0;
         for kk in range(0, max(cds.shape)):
             u[ii, kk] = d/total
             d += cds[kk]
@@ -208,7 +208,7 @@ def chord_length_nodes(pU, pV, Q):
 
         cds = np.sqrt( np.diff(X[ii, :])**2 + np.diff(Y[ii, :])**2 + np.diff(Z[ii, :])**2 )
         total = np.sum(cds)
-        d = 0; 
+        d = 0;
         for kk in range(0, max(cds.shape)):
             v[ii, kk] = d/total
             d += cds[kk]
@@ -232,8 +232,7 @@ def chord_length_nodes(pU, pV, Q):
 
 def fit_knots(uk, num_control_points, degree):
     n = max(uk.shape)
-    knotsU = np.empty((num_control_points + degree + 1))
-    knotsU[:] = np.nan
+    knotsU = np.full((num_control_points + degree + 1), np.nan)
     knotsU[0:degree+1] = 0
     knotsU[-(degree+1):] = 1
     d = n/(num_control_points - degree)
@@ -241,7 +240,90 @@ def fit_knots(uk, num_control_points, degree):
         i = int((jj+1)*d)
         alpha = (jj+1)*d - i
         knotsU[degree+jj+1] = (1-alpha)*uk[i-1] + alpha*uk[i]
+
+    # for the moment make just a linear spacing of knots, in the inner part
+    knotsU[degree:num_control_points+1] = np.linspace(0, 1, num_control_points - degree + 1)
+
     return knotsU
+
+def initialize_step_writer():
+    from OCC.Core.STEPControl import STEPControl_Writer, STEPControl_AsIs
+    from OCC.Core.Interface import Interface_Static
+    step_writer = STEPControl_Writer()
+    Interface_Static.SetCVal("write.step.schema", "AP203")
+
+    return step_writer
+
+def Nurbs_to_STEPwriter(Nurbs, step_writer):
+    from OCC.Core.STEPControl import STEPControl_Writer, STEPControl_AsIs
+    from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakeFace
+    from OCC.Display.SimpleGui import init_display
+    from OCC.Core.Geom import Geom_BSplineSurface
+    import OCC.Core.Geom
+    from OCC.Core.gp import gp_Pnt
+    from OCC.Core.TColgp import TColgp_Array2OfPnt
+    from OCC.Core.TColStd import TColStd_Array1OfReal, TColStd_Array1OfInteger
+    from OCC.Core.GeomLib import geomlib_ExtendSurfByLength
+    #from OCC.Core.GeomLib import ExtendSurfByLength
+    import OCC.Core.GeomLib
+
+    pU = Nurbs.degreeU
+    pV = Nurbs.degreeV
+
+    Vknots = Nurbs.knotsV.tolist()
+    Uknots = Nurbs.knotsU.tolist()
+
+    control_points = Nurbs.controlPoints
+    gridSizeControlPoints = control_points.shape
+    gridSizeControlPoints = [gridSizeControlPoints[1], gridSizeControlPoints[2]] # transposing the control points matrix to match the pythonOCC array grid
+
+    # initializing pythonOCC array grid
+    pOCArray = TColgp_Array2OfPnt(0, gridSizeControlPoints[0]-1, 0, gridSizeControlPoints[1]-1)
+
+    # copy those points in the pyOCC array grid
+    for i in range(0, gridSizeControlPoints[0]):
+        for j in range(0, gridSizeControlPoints[1]):
+            pOCArray.SetValue(i, j, gp_Pnt(control_points[0,i,j],control_points[1,i,j], control_points[2,i,j]) )
+
+    # removing knots multiplicity; pythonOCC requires unique knots values followed by a MULT array that defines multiplicity of each knot
+    for i in range(pU):
+        Uknots.pop(0)  # dropping zeros at beginning
+        Uknots.pop(-1) # dropping ones at the end
+
+    for i in range(pV):
+        Vknots.pop(0)   # dropping zeros at beginning
+        Vknots.pop(-1)  # dropping ones at the end
+
+    UknotsOCC = TColStd_Array1OfReal(0, len(Uknots)-1)  # initializing pythonOCC arrays for Uknots
+    VknotsOCC = TColStd_Array1OfReal(0, len(Vknots)-1)  # initializing pythonOCC arrays for Vknots
+    multU     = TColStd_Array1OfInteger(0, len(Uknots)-1)  # initializing pythonOCC arrays for multiplicity of Uknots
+    multV     = TColStd_Array1OfInteger(0, len(Vknots)-1)  # initializing pythonOCC arrays for multiplicity of Vknots
+
+    # for loop to assign array elements... sadly can't just type OCCarray = pythonList. We need to use the SetValue method for each element
+    for i in range(len(Uknots)):
+        UknotsOCC.SetValue(i, Uknots[i])
+        # check if it is the first or last knot
+        if i == 0 or i == len(Uknots)-1:   # setting multiplicity to degree + 1
+            multU.SetValue(i, pU+1)        # to the first and the final values
+            continue
+        # set multiplicity to 1 otherwise
+        multU.SetValue(i, 1)
+
+    # for loop to assign Vknots values and setting multiplicity array of V
+    for i in range(len(Vknots)):
+        VknotsOCC.SetValue(i, Vknots[i])
+        # check if it is the first or last knot
+        if i == 0 or i == len(Vknots)-1: # setting multiplicity to degree + 1
+            multV.SetValue(i, pV+1)      # to the first and the final values
+            continue
+        # set multiplicity to 1 otherwise
+        multV.SetValue(i, 1)
+
+    NURBSsurf = Geom_BSplineSurface(pOCArray, UknotsOCC, VknotsOCC, multU, multV, pU, pV)
+    BRepObj = BRepBuilderAPI_MakeFace(NURBSsurf, 0, 1, 0, 1, 1e-6)
+    step_writer.Transfer(BRepObj.Shape(), STEPControl_AsIs)
+
+    return NURBSsurf
 
 def fit_nurbs_surface(target_points, degreeU, degreeV, control_points_shape):
     """
@@ -274,7 +356,7 @@ def fit_nurbs_surface(target_points, degreeU, degreeV, control_points_shape):
     Ni = np.full((uk.shape[0], lenU-pU-1), np.nan)
     for kk in range(0, uk.shape[0]):
         Ni[kk, :] = basis_function(uk[kk], pU, knotsU)
-        
+
     Nj = np.full((vk.shape[0], lenV-pV-1), np.nan)
     for kk in range(0, vk.shape[0]):
         Nj[kk, :] = basis_function(vk[kk], pV, knotsV)
@@ -298,7 +380,7 @@ def fit_nurbs_surface(target_points, degreeU, degreeV, control_points_shape):
     return control_points, knotsU, knotsV, uk, vk
 
 class Nurbs:
-    def __init__(self, knotsU, knotsV, degU, degV, control_points) -> None:
+    def __init__(self, knotsU = None, knotsV= None, degU = 3, degV = 3, control_points = None) -> None:
         self.controlPoints = control_points
         self.knotsU = knotsU
         self.knotsV = knotsV
@@ -322,7 +404,7 @@ class Nurbs:
                 self.__init_casadi_functions()
 
         return
-    
+
     def eval(self, u_values, v_values):
         """
         returns the Nurbs evaluated at the sampled values in a dictionary S = {'x':x_value, 'y':y_value, 'z':z_value}
@@ -336,10 +418,10 @@ class Nurbs:
         if not isinstance(v_values, np.ndarray):
             v_values = np.array(v_values)
 
-        shp = u_values.shape; n = shp[0]; 
-        try: 
+        shp = u_values.shape; n = shp[0];
+        try:
             m = shp[1]
-        except: 
+        except:
             m = 1
 
         # if u_values.shape != v_values.shape:
@@ -373,7 +455,7 @@ class Nurbs:
              'z': np.reshape(np.sum(Ni.T*(Z @ Nj.T), axis = 0), (n, m)).squeeze()}
 
         return S
-    
+
     def fit(self, target_points, degU, degV, control_points_shape):
 
         if isinstance(target_points, dict):
@@ -383,7 +465,7 @@ class Nurbs:
             points[1,:,:] = target_points['Y']
             points[2,:,:] = target_points['Z']
             target_points = points
-        
+
         self.degreeU = degU
         self.degreeV = degV
         self.orderU = degU + 1
@@ -416,14 +498,14 @@ class Nurbs:
 
         self.fit_residuals = np.sum((target_points - evaluated_points) * evaluated_normals, axis=0)
         return
-    
+
     def plot(self, nU = 150, nV = 150, show_normals = False):
         u_values = np.linspace(0, 1, nU)
         v_values = np.linspace(0, 1, nV)
         X = np.nan*np.zeros((nU, nV))
         Y = np.nan*np.zeros((nU, nV))
         Z = np.nan*np.zeros((nU, nV))
-        
+
         for ii in range(0, nU):
             for jj in range(0, nV):
                 S = self.eval(u_values[ii], v_values[jj])
@@ -457,8 +539,8 @@ class Nurbs:
         plotter.show_axes()
         plotter.show_grid()
         plotter.show()
-        plotter.enable_point_picking()
-        
+        # plotter.enable_point_picking()
+
         return
 
     def plot_residuals(self):
@@ -502,11 +584,11 @@ class Nurbs:
         Ni_0 = Ni[:, 0]
         Ni_1 = Ni[:, 1]
         Ni_2 = Ni[:, 2]
-        
+
         Nj_0 = Nj[:, 0]
         Nj_1 = Nj[:, 1]
         Nj_2 = Nj[:, 2]
-        
+
         S = ca.vertcat(Ni_0.T@X@Nj_0, Ni_0.T@Y@Nj_0, Ni_0.T@Z@Nj_0)
         Su = ca.vertcat(Ni_1.T@X@Nj_0, Ni_1.T@Y@Nj_0, Ni_1.T@Z@Nj_0)
         Suu = ca.vertcat(Ni_2.T@X@Nj_0, Ni_2.T@Y@Nj_0, Ni_2.T@Z@Nj_0)
@@ -537,7 +619,7 @@ class Nurbs:
 def main():
 
     file_path = 'Data/Q.dat'
-    
+
     data = np.loadtxt('Data/Q.dat')
 
     Q = {
@@ -548,8 +630,19 @@ def main():
     nurbs = Nurbs([],[],[],[],[])
     nurbs.fit(Q, 3, 3, (50,80))
     # nurbs.plot_residuals()
-    nurbs.plot()
+    # nurbs.plot()
     print(nurbs.curvature_max(0,0))
+    stp_wr = initialize_step_writer()
+    NRBS_OCC = Nurbs_to_STEPwriter(nurbs, stp_wr)
+
+    from OCC.Display.SimpleGui import init_display
+    display, start_display, add_menu, add_function_to_menu = init_display()
+
+    display.DisplayShape(NRBS_OCC)
+    # display.DisplayShape(revolved_shape, update=True)
+    # display.DisplayShape(final_result, update=True)
+    start_display()
+
 
     return
 

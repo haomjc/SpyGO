@@ -1,0 +1,250 @@
+
+system_data:
+   hand: right
+   shaft_angle: 0.0
+   ratio: 0.0
+   hypoid_offset: 0.0
+   E: 0.0
+   P: 0.0
+   G: 0.0
+   alpha: 0.0
+
+gear_common_data:
+   gen_type: 
+   NTEETH: 0
+   SPIRALANGLE: 0.0
+   OUTERCONEDIST: 0.0
+   FACEWIDTH: 0.0
+   FACECANGLE: 0.0
+   BACKANGLE: 0.0
+   FRONTANGLE: 0.0
+   PITCHANGLE: 0.0
+   BASECONEANGLE: 0.0
+   PITCHAPEX: 0.0
+   FACEAPEX: 0.0
+   ROOTAPEX: 0.0
+   BASECONEAPEX: 0.0
+
+pinion_common_data:
+   gen_type: 
+   NTEETH: 0
+   SPIRALANGLE: 0.0
+   OUTERCONEDIST: 0.0
+   FACEWIDTH: 0.0
+   FACECANGLE: 0.0
+   BACKANGLE: 0.0
+   FRONTANGLE: 0.0
+   PITCHANGLE: 0.0
+   BASECONEANGLE: 0.0
+   PITCHAPEX: 0.0
+   FACEAPEX: 0.0
+   ROOTAPEX: 0.0
+   BASECONEAPEX: 0.0
+
+gear_machine_settings:
+
+   concave:
+      RADIALSETTING: 0.0
+      CRADLEANGLE: 0.0
+      TILTANGLE: 0.0
+      SWIVELANGLE: 0.0
+      BLANKOFFSET: 0.0
+      ROOTANGLE: 0.0
+      MACHCTRBACK: 0.0
+      SLIDINGBASE: 0.0
+      RATIOROLL: 0.0
+      C2: 0.0
+      D6: 0.0
+      E24: 0.0
+      F120: 0.0
+      G720: 0.0
+      H5040: 0.0
+      H1: 0.0
+      H2: 0.0
+      H3: 0.0
+      H4: 0.0
+      H5: 0.0
+      H6: 0.0
+      V1: 0.0
+      V2: 0.0
+      V3: 0.0
+      V4: 0.0
+      V5: 0.0
+      V6: 0.0
+      R1: 0.0
+      R2: 0.0
+      R3: 0.0
+      R4: 0.0
+      R5: 0.0
+      R6: 0.0
+
+   convex:
+      RADIALSETTING: 0.0
+      CRADLEANGLE: 0.0
+      TILTANGLE: 0.0
+      SWIVELANGLE: 0.0
+      BLANKOFFSET: 0.0
+      ROOTANGLE: 0.0
+      MACHCTRBACK: 0.0
+      SLIDINGBASE: 0.0
+      RATIOROLL: 0.0
+      C2: 0.0
+      D6: 0.0
+      E24: 0.0
+      F120: 0.0
+      G720: 0.0
+      H5040: 0.0
+      H1: 0.0
+      H2: 0.0
+      H3: 0.0
+      H4: 0.0
+      H5: 0.0
+      H6: 0.0
+      V1: 0.0
+      V2: 0.0
+      V3: 0.0
+      V4: 0.0
+      V5: 0.0
+      V6: 0.0
+      R1: 0.0
+      R2: 0.0
+      R3: 0.0
+      R4: 0.0
+      R5: 0.0
+      R6: 0.0
+
+pinion_machine_settings:
+
+   concave:
+      RADIALSETTING: 0.0
+      CRADLEANGLE: 0.0
+      TILTANGLE: 0.0
+      SWIVELANGLE: 0.0
+      BLANKOFFSET: 0.0
+      ROOTANGLE: 0.0
+      MACHCTRBACK: 0.0
+      SLIDINGBASE: 0.0
+      RATIOROLL: 0.0
+      C2: 0.0
+      D6: 0.0
+      E24: 0.0
+      F120: 0.0
+      G720: 0.0
+      H5040: 0.0
+      H1: 0.0
+      H2: 0.0
+      H3: 0.0
+      H4: 0.0
+      H5: 0.0
+      H6: 0.0
+      V1: 0.0
+      V2: 0.0
+      V3: 0.0
+      V4: 0.0
+      V5: 0.0
+      V6: 0.0
+      R1: 0.0
+      R2: 0.0
+      R3: 0.0
+      R4: 0.0
+      R5: 0.0
+      R6: 0.0
+
+   convex:
+      RADIALSETTING: 0.0
+      CRADLEANGLE: 0.0
+      TILTANGLE: 0.0
+      SWIVELANGLE: 0.0
+      BLANKOFFSET: 0.0
+      ROOTANGLE: 0.0
+      MACHCTRBACK: 0.0
+      SLIDINGBASE: 0.0
+      RATIOROLL: 0.0
+      C2: 0.0
+      D6: 0.0
+      E24: 0.0
+      F120: 0.0
+      G720: 0.0
+      H5040: 0.0
+      H1: 0.0
+      H2: 0.0
+      H3: 0.0
+      H4: 0.0
+      H5: 0.0
+      H6: 0.0
+      V1: 0.0
+      V2: 0.0
+      V3: 0.0
+      V4: 0.0
+      V5: 0.0
+      V6: 0.0
+      R1: 0.0
+      R2: 0.0
+      R3: 0.0
+      R4: 0.0
+      R5: 0.0
+      R6: 0.0
+
+gear_cutter_data:
+
+   concave:
+      POINTRADIUS: 0.0
+      BLADEANGLE: 0.0
+      EDGERADIUS: 0.0
+      TYPE: STRAIGHT
+      topremTYPE: NONE
+      flankrem_type: NONE
+      RHO: 0.0
+      topremDEPTH: 0.0
+      topremRADIUS: 0.0
+      topremANGLE: 0.0
+      flankremDEPTH: 0.0
+      flankremRADIUS: 0.0
+      flankremANGLE: 0.0
+
+   convex:
+      POINTRADIUS: 0.0
+      BLADEANGLE: 0.0
+      EDGERADIUS: 0.0
+      TYPE: STRAIGHT
+      topremTYPE: NONE
+      flankrem_type: NONE
+      RHO: 0.0
+      topremDEPTH: 0.0
+      topremRADIUS: 0.0
+      topremANGLE: 0.0
+      flankremDEPTH: 0.0
+      flankremRADIUS: 0.0
+      flankremANGLE: 0.0
+
+pinion_cutter_data:
+
+   concave:
+      POINTRADIUS: 0.0
+      BLADEANGLE: 0.0
+      EDGERADIUS: 0.0
+      TYPE: STRAIGHT
+      topremTYPE: NONE
+      flankrem_type: NONE
+      RHO: 0.0
+      topremDEPTH: 0.0
+      topremRADIUS: 0.0
+      topremANGLE: 0.0
+      flankremDEPTH: 0.0
+      flankremRADIUS: 0.0
+      flankremANGLE: 0.0
+
+   convex:
+      POINTRADIUS: 0.0
+      BLADEANGLE: 0.0
+      EDGERADIUS: 0.0
+      TYPE: STRAIGHT
+      topremTYPE: NONE
+      flankrem_type: NONE
+      RHO: 0.0
+      topremDEPTH: 0.0
+      topremRADIUS: 0.0
+      topremANGLE: 0.0
+      flankremDEPTH: 0.0
+      flankremRADIUS: 0.0
+      flankremANGLE: 0.0

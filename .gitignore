@@ -1,3 +1,5 @@
 Casadi/
 Temp/
 cpp_project/
+**.step
+**.FCstd

@@ -24,7 +24,6 @@ def is_notebook():
         return False
     return False
 
-
 # Figure container
 class Figure:
     
@@ -39,12 +38,15 @@ class Figure:
 
     def __init__(self, title = 'Title') -> None:
         self.app = pv
-        self.figure = pv.Plotter(title = title)
+        self.figure = pvq.BackgroundPlotter(title = title)
         self.axes = self.figure.show_axes()
         self.grid = self.figure.show_grid()
         self.bounds = self.figure.show_bounds(grid='back', location='outer', ticks='both', all_edges=True)
         if not is_notebook():
-            self.figure.show(interactive=False, auto_close=False)
+            if isinstance(self.figure, pv.Plotter):
+                self.figure.show(jupyter_backend='static')
+            else:
+                self.figure.show()
 
 
     def updateImage(self):
@@ -73,17 +75,23 @@ class Figure:
         if is_notebook():
             if planar:
                 self.figure.view_xy()
-            self.figure.show(jupyter_backend='static')
+            
+            if isinstance(self.figure, pv.Plotter):
+                self.figure.show(jupyter_backend='static')
+            else:
+                self.figure.show()
 
         else:
             if planar:
                 self.figure.view_xy()
-            self.figure.show(interactive=True, auto_close=False)
+            if isinstance(self.figure, pv.Plotter):
+                self.figure.show(interactive=True, auto_close=False)
+            else:
+                self.figure.show()
 
     def set_scale(self, x_scale, y_scale, z_scale):
         self.figure.set_scale(x_scale, y_scale, z_scale)
-
-
+        
 class go():  # graphical object container
 
     def __init__(self, fig, parent = None):
@@ -95,7 +103,8 @@ class go():  # graphical object container
         self.figure = fig
         self.object = []
         if parent is not None:
-            self.parent.addChildren(self)
+            self.parent.addChildren(self) # add this object to the parent's children list
+            self.setTransform(parent.currentGlobal) # set the transform to the parent's global transform
         return
 
     def updateData(self, points):
@@ -204,9 +213,8 @@ class line(go):
             line_width = line_width,
         )
         self.figure.addPlotObject(self)
-        self.points = self.object.points
+        self.points = self.object.points # transpose to have the same format as the other objects
             
-
 class revolute_joint(go):
     """
     revolute joint object.
@@ -249,16 +257,25 @@ def main():
 
     X, Y, Z, vertices, faces = createCylinder(0.5, np.array([0,0,1]), 1, 1, 0)
     F = Figure()
+
+    
+
     S = surface(F, X,Y,Z)
     X = X[0,:]; Y = Y[0,:]; Z = Z[0,:]
     P = patch(F, X,Y,Z)
     rev = revolute_joint(F, 0.5, np.array([0,1,0]), 1, 1, 0)
+    rev.setTransform(sc.TtX(5)@sc.TtY(5))
     prism = prismatic_joint(F, 0.5, np.array([1,1,1]), 1, 1, 0, parent = rev)
-    L = line(F, np.array([1.0,2,3]), np.array([0, 1.0, 8]))
-    print(L.object.lines)
-    # rev.setTransform(sc.TtP(np.array([1,1,1])))
-    # F.updateImage()
+    L = line(F, np.array([1.0,2,3,4]), np.array([0, 1.0, 8,1]), parent = rev)
+    
+
+    print(L.currentGlobal)
+    F.updateImage()
     F.show()               # start widget
+
+if __name__ == "__main__":
+    main()
+
 
 def main2():
     import pyvista as pv
@@ -316,10 +333,3 @@ def main_pyvista_tutorial():
 
     # Keep the window open after the animation completes
     plotter.close()
-
-
-if __name__ == "__main__":
-    main()
-    # main2()
-    # main_pyvista_tutorial()
-    # main_debug()

@@ -40,7 +40,38 @@ def fsolve_casadi(casadi_obj, sym_x, sym_p, x0, p, jac_fun = None, solver = None
         sol = root(f, x0 = x0, jac=j, args = p, method = solver)
     return sol, jac, fun
 
-
+def generate_poll_directions(n, poll_type='positive_basis_2n'):
+    """
+    Generate a set of poll directions for an n-dimensional problem.
+    
+    Parameters
+    ----------
+    n : int
+        Dimension of the problem.
+    poll_type : str, optional
+        Type of polling directions to generate. Options include:
+          - 'positive_basis_2n': 2n coordinate directions (each positive and negative unit vector).
+          - 'positive_basis_n+1': n+1 directions forming a positive spanning set (e.g. for simplex‐based search).
+    
+    Returns
+    -------
+    directions : ndarray, shape (m, n)
+        An array whose rows are the poll directions.
+    """
+    if poll_type == 'positive_basis_2n':
+        # Create 2n directions: the unit vectors and their negatives.
+        directions = np.vstack((np.eye(n), -np.eye(n)))
+    elif poll_type == 'positive_basis_n+1':
+        # Create n+1 directions that form a positive spanning set.
+        # One common choice is to take the n standard unit vectors and one extra vector:
+        # d_{n+1} = -sum_{i=1}^n e_i.
+        directions = np.eye(n)
+        extra = -np.ones(n)
+        directions = np.vstack((directions, extra))
+    else:
+        raise ValueError(f"Unknown poll_type: {poll_type}")
+    
+    return directions
 
 def pattern_search(func, x0,
                     step_size = 1.0,
@@ -49,7 +80,8 @@ def pattern_search(func, x0,
                     contraction_factor = 2,
                     expansion_factor = 2,
                     complete_poll = False,
-                    display = 'iter'):
+                    display = 'iter', 
+                    output_fun = None):
     """
     Pattern search algorithm to find the minimum of a given function.
     
@@ -65,7 +97,7 @@ def pattern_search(func, x0,
     - Value of the function at the minimum point.
     """
     n = len(x0)  # Number of variables
-    directions = np.eye(n)  # Identity matrix to define pattern directions (axis-aligned)
+    directions = generate_poll_directions(n, poll_type='positive_basis_2n')
     
     x = np.copy(x0)  # Current solution
     fval = func(x)   # Current function value
@@ -97,7 +129,10 @@ def pattern_search(func, x0,
                 step_size *= expansion_factor # increase mesh size
                 method = 'successful poll'
                 break  # Move to the next iteration since we found an improvement
-
+        
+        if output_fun is not None:
+            output_fun(x, fval)
+            
         # If no better solution found, reduce the step size
         if not found_better:
             method = 'mesh refinement'
@@ -122,17 +157,9 @@ def pattern_search(func, x0,
         print(f"Minimum found at: {x}, function value: {fval}")
     return x, fval
 
-
-
 def main():
-    # x = ca.SX.sym('x')
-    # p = ca.SX.sym('p')
-    # f = x**2 +6*x**3 - x +p*3
-    # sol, _, _ = fsolve_casadi(f, x, p, 1, 1)
-    # print(sol)
-
     # Example usage with a test function (Rosenbrock function)
-    # @njit
+    @njit
     def rosenbrock(x):
         return sum(100.0*(x[1:]-x[:-1]**2.0)**2.0 + (1.0-x[:-1])**2.0)
 
@@ -144,7 +171,7 @@ def main():
 
     # Run the pattern search
     start_time = time.perf_counter() # 
-    result, fval = pattern_search(rosenbrock, x0, display='off')
+    result, fval = pattern_search(rosenbrock, x0, display='iter', complete_poll=True, max_iter = 10)
     end_time = time.perf_counter()
 
     execution_time = end_time - start_time
@@ -152,6 +179,3 @@ def main():
     
 if __name__ == "__main__":
     main()
-
-
-     

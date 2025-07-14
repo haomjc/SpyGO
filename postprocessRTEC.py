@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib import cm
 import struct
-from utils import *
+from general_utils import *
 from matplotlib.colors import LightSource
 from vispy.plot import Fig
-import easyPlot_myavi as ep
+# import easyPlot_myavi as ep
 
 # from matplotlib import interactive
 # interactive(true)
@@ -175,6 +175,8 @@ def plot_3Dscan(Zdata, info, z_ratio = 0.3, crange = [580, 620], cross_section =
 def main_signal():
     # set filename with its relative path
     path = r'C:\Users\egrab\Desktop\Unipi2024\RTDA\Lavoro_CSM2024\data_rtec\prove_acciaio_Flavio_39NiCrMo3\StribekR20_1minstep_20mps_100mmps_25C_VG46'
+    filename = r'LOG.csv'
+    path = r'C:\Users\egrab\Desktop\Unipi2024\RTDA\Closed_call_REOBTAIN\REOBTAIN\prova_26_05_2025_test_velocita_GrassoFerr'
     filename = r'LOG.csv'
     fullfilename = f"{path}\\{filename}"
 

@@ -732,7 +732,7 @@ def RK4_step_implicit(x, u, xdot, dt, k_guess = None):
         k_guess = [y, y]  # Explicit Euler guess
 
     # Solve for k1 and k2 using a nonlinear solver
-    k1, k2 = fsolve(equations, k_guess)
+    k1, k2 = sl.fsolve(equations, k_guess)
 
     # Update the solution
     y_next = x + dt * (b1 * k1 + b2 * k2)
@@ -872,8 +872,8 @@ def main_integrators():
     ax = plt.figure().add_subplot(projection='3d')
     ax.view_init(elev=30, azim=45, roll=15)
     ax.plot(x_simulation[0,:], x_simulation[1,:], x_simulation[2,:], color = 'black')
-    # ax.plot(x_simulation2[0,:], x_simulation2[1,:], x_simulation2[2,:], color = 'blue')
-    # ax.plot(x_diff[0,:], x_diff[1,:], x_diff[2,:], color = 'red')
+    ax.plot(x_simulation2[0,:], x_simulation2[1,:], x_simulation2[2,:], color = 'blue')
+    ax.plot(x_diff[0,:], x_diff[1,:], x_diff[2,:], color = 'red')
     plt.show()
 
 def main_localPOE():
@@ -935,10 +935,10 @@ def main_DH_Stanford():
     F.show()
 
 def main_debug():
-    x = np.array([1])
-    print(np.cos(x))
-    R = rotX(x)
-    print(R)
+    V = np.random.rand(3,3)
+    omega = vecForm(V)
+    print(omega)
+    return
 
 if __name__ == "__main__":
     # main_integrators()
