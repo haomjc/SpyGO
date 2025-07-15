@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Literal, Dict
 import numpy as np
-from math import atan, pi, sqrt
-
+from math import atan, pi, sqrt, sin , asin
+from general_utils import *
 
 # 🔵 Top-level system data
 @dataclass
@@ -42,18 +42,30 @@ class CommonField:
     FACEAPEX: float = 0.0
     ROOTAPEX: float = 0.0
     BASECONEAPEX: float = 0.0
-    ShaftzB: float = 0.0
-    ShaftRB: float = 0.0
-    ShaftzA: float = 0.0
-    ShaftRA: float = 0.0
-    ShaftDiA: float = 0.0  # internal diameter at point A
-    ShaftDiB: float = 0.0  # internal diameter at point B
     MEANNORMALCHORDALTHICKNESS: float = None
     MEANADDENDUM: float = None
     MEANCHORDALADDENDUM: float = None
     MEANCUTTERRAIDUS: float = None
     NORMAL_THICKNESS: float = None
     XVERSECIRCULAR: float = None
+
+    # axial plane shaft points
+    ShaftzB: float = 0.0
+    ShaftRB: float = 0.0
+    ShaftzA: float = 0.0
+    ShaftRA: float = 0.0
+    ShaftDiA: float = 0.0  # internal diameter at point A
+    ShaftDiB: float = 0.0  # internal diameter at point B
+     
+    # axial plane boundaries
+    zFACEHEEL: float = None
+    RFACEHEEL: float = None
+    zFACETOE: float = None
+    RFACETOE: float = None
+    zROOTHEEL: float = None
+    RROOTHEEL: float = None
+    zROOTTOE: float = None
+    RROOTTOE: float = None
     # Additional fields can be added as needed
 
 
@@ -211,8 +223,108 @@ class DesignData:
             [gam0,  0,  0,  0,   0,    0,    0,     0]      #joint Gear 3
             ])  
 
+    def extract_blank_settings(self, member: Literal["gear", "pinion"]):
+        if member.lower() == "gear":
+            common_settings = self.gear_common_data
+            root_angle = self.pinion_machine_settings.concave.ROOTANGLE
+        else:
+            common_settings = self.pinion_common_data
+            root_angle = self.gear_machine_settings.concave.ROOTANGLE
 
+        A0 = common_settings.OUTERCONEDIST
+        Fw = common_settings.FACEWIDTH
+        beta = common_settings.SPIRALANGLE
+
+        # front/back cones
+        deltaf = common_settings.FRONTANGLE
+        deltab = common_settings.BACKANGLE
+
+        # pitch cone
+        gammaP = common_settings.PITCHANGLE
+        dpa = common_settings.PITCHAPEX
+
+        # face cone
+        dfa = common_settings.FACEAPEX
+        gammaF = common_settings.FACECANGLE
+
+        # root cone
+        dra = common_settings.ROOTAPEX
+        gammaR = root_angle
+
+        # base cone
+        gammaB = common_settings.BASECONEANGLE
+        dba = common_settings.BASECONEAPEX
         
+        RA = common_settings.ShaftRA
+        deltaf = deltaf*pi/180
+        deltab = deltab*pi/180
+        gammaP = gammaP*pi/180
+        gammaF = gammaF*pi/180
+        gammaR = gammaR*pi/180
+        gammaB = gammaB*pi/180
+        beta = beta*pi/180 
+        return (A0, Fw, beta, deltaf, deltab, gammaP, dpa, gammaF, dfa, gammaR, dra, gammaB, dba, RA)
+            
+    def extract_tool_settings(self, member: Literal["gear", "pinion"], flank: Literal["concave", "convex"]):
+        if member.lower() == "gear":
+            member_tool_settings = self.gear_cutter_data
+        else:
+            member_tool_settings = self.pinion_cutter_data
+
+        if flank.lower() == 'concave':
+            tool_settings = member_tool_settings.concave
+        else:
+            tool_settings = member_tool_settings.convex
+
+        alphaFlank = 0
+        RHO_STRAIGHT = 2e6
+
+        POINTRADIUS = tool_settings.POINTRADIUS
+        BLADEANGLE = tool_settings.BLADEANGLE
+        EDGERADIUS = tool_settings.EDGERADIUS
+
+        TYPE = tool_settings.TYPE
+        topremTYPE = tool_settings.topremTYPE
+        flankremTYPE = tool_settings.flankremTYPE
+
+        if TYPE.lower() == 'curved':
+            RHO = tool_settings.RHO
+        else:
+            RHO = RHO_STRAIGHT
+
+        if topremTYPE.lower() == 'blended':
+            topremRADIUS = tool_settings.topremRADIUS
+            topremDEPTH = tool_settings.topremDEPTH
+        elif topremTYPE.lower() == 'straight':
+            topremANGLE = tool_settings.topremANGLE
+            topremDEPTH = tool_settings.topremDEPTH
+            topremRADIUS = RHO_STRAIGHT
+        else: # feature disabled
+            topremRADIUS = 100
+            Czblade = RHO*sin(BLADEANGLE*pi/180)
+            theta_iniz_blade = asin((Czblade + EDGERADIUS)/(RHO + EDGERADIUS))
+        
+            topremDEPTH = EDGERADIUS - EDGERADIUS*sin(theta_iniz_blade)
+            topremANGLE = 0
+            if tool_settings.topremANGLE != 0:
+                msgbox("Tool with angle offset between tip & blade (toprem angle) not implemented", 'Error', 1)
+
+        if flankremTYPE.lower() == 'blended':
+            flankremRADIUS = tool_settings.flankremRADIUS
+            flankremDEPTH = tool_settings.flankremDEPTH
+        elif flankremTYPE.lower() == 'straight':
+            flankremANGLE = tool_settings.flankremANGLE
+            flankremDEPTH = tool_settings.flankremDEPTH
+            flankremRADIUS = RHO_STRAIGHT
+        else: # feature diabled
+            flankremRADIUS = RHO
+            if flankremDEPTH is None:
+                flankremDEPTH = RHO/3
+            flankremANGLE = 0
+            if tool_settings.topremANGLE != 0:
+                msgbox("Tool with angle offset blade and flanrem (flankrem angle) not implemented", 'Error', 1)
+
+        return (POINTRADIUS, RHO, EDGERADIUS, topremRADIUS, flankremRADIUS, BLADEANGLE, flankremDEPTH, topremDEPTH, topremANGLE, flankremANGLE)
         
 
 def initialize_design_data() -> DesignData:

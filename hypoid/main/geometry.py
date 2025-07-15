@@ -17,20 +17,18 @@ def surface_sampling_casadi(data: DesignData, member, flank, sampling_size, trip
     n_prof = sampling_size[1]
     n_fillet = sampling_size[2]
     HAND = data.system_data.HAND
-    blank_settings = list(assign_Blank_Par(data, member))
 
-    tool_settings = assign_tool_par(data, member, flank)
+    blank_settings = list(data.extract_blank_settings(member))
+    tool_settings = data.extract_tool_settings(member, flank)
 
-    raw_machine_settings = assign_machine_par(data, member, flank)
+    raw_machine_settings = data.extract_machine_settings_matrix(member, flank)
     if spreadblade:
-        raw_machine_settings = assign_machine_par(data, member, 'concave')
+        raw_machine_settings = data.extract_machine_settings_matrix(member, 'concave')
 
     if triplet_guess is None or not triplet_guess:
         triplet_guess = initial_guess_from_data(data, member, flank)
     
-    common_field_name, sub_common_field_name = get_data_field_names(member, flank, fields='common')
-    
-    if member.lower() == 'gear' and getattr(getattr(data, common_field_name), f'{sub_common_field_name}GenType').lower() == 'formate':
+    if member.lower() == 'gear' and data.gear_common_data.gen_type.lower() == 'formate':
         raise Exception("Formate sampling not yet implemented")
         return # TO DO: tooth_sampling_casadi_formate()
     else:
@@ -271,13 +269,13 @@ def rz_sampling_casadi_formate(R, Z, data: DesignData, member, flank, triplet_gu
     system_hand = data.system_data.HAND
 
     # Kinematics definition 
-    machine_par_matrix = assign_machine_par(data, member, 'concave')
+    machine_par_matrix = data.extract_machine_settings_matrix(member, flank)
 
     ggt, Vgt, Vgt_spatial = casadi_machine_kinematics(member, system_hand)
     G = ca.full(ggt(machine_par_matrix, 0))
 
     # Tool definition
-    toolvec = assign_tool_par(data, member, flank)
+    toolvec = data.extract_tool_settings(member, flank)
     toolvec = np.concatenate(toolvec)  # Convert list of arrays to a single array
     pT, nT = casadi_tool_fun(flank)
 
@@ -401,14 +399,14 @@ def rz_sampling_casadi(R, Z, data: DesignData, member, flank, triplet_guess = No
 
     # Kinematics definition
     if sb_machine:
-        machine_par_matrix = assign_machine_par(data, member, 'concave')
+        machine_par_matrix = data.extract_machine_settings_matrix(member, 'concave')
     else:
-        machine_par_matrix = assign_machine_par(data, member, flank)
+        machine_par_matrix = data.extract_machine_settings_matrix(member, flank)
 
     ggt, Vgt, Vgt_spatial = casadi_machine_kinematics(member, system_hand)
 
     # Tool definition
-    toolvec = assign_tool_par(data, member, flank)
+    toolvec = data.extract_tool_settings(member, flank)
     toolvec = np.array(toolvec) 
     pT, nT, _ = casadi_tool_fun(flank)
 
@@ -511,9 +509,9 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
         pinion_flank = 'convex'
 
     # tool geometry and machine kinematics
-    tool_settings = assign_tool_par(data, 'gear', gear_flank)
+    tool_settings = data.extract_tool_settings('gear', gear_flank)
     p_tool, n_tool, _ = casadi_tool_fun(gear_flank, toprem=False, flankrem=False)
-    raw_machine_settings = assign_machine_par(data, 'gear', gear_flank)
+    raw_machine_settings = data.extract_machine_settings_matrix('gear', gear_flank)
     ggt, Vgt, Vgt_spatial = casadi_machine_kinematics('gear', HAND)
 
     # gear-pinion kinematics
@@ -723,27 +721,28 @@ def shaft_segment_computation(data:DesignData):
     return data
 
 def rz_boundaries_computation(data: DesignData, member):
-    common, sub_common = get_data_field_names(member, 'concave', fields = 'common')
-    machine, sub_machine = get_data_field_names(member, 'concave', fields = 'machine')
 
-    member_common_data = getattr(data, common)
-    O = member_common_data.OUTERCONEDIST
-    Fw = member_common_data.FACEWIDTH
+    common_data = data.gear_common_data
+    if member.lower() == 'pinion':
+        common_data = data.pinion_common_data
 
-    if member_common_data.MEANCONEDIST is None:
-        member_common_data.MEANCONEDIST = O - Fw/2
-        member_common_data.INNERCONEDIST = O - Fw
+    O = common_data.OUTERCONEDIST
+    Fw = common_data.FACEWIDTH
 
-    face_angle = member_common_data.FACEANGLE
-    pitch_angle = member_common_data.PITCHANGLE
-    root_angle = member_common_data.ROOTANGLE  
-    front_angle = member_common_data.FRONTANGLE
-    back_angle = member_common_data.BACKANGLE
-    base_angle = member_common_data.BASECONEANGLE
+    if common_data.MEANCONEDIST is None:
+        common_data.MEANCONEDIST = O - Fw/2
+        common_data.INNERCONEDIST = O - Fw
 
-    pitch_apex = member_common_data.PITCHAPEX
-    face_apex = member_common_data.FACEAPEX
-    root_apex = member_common_data.ROOTAPEX
+    face_angle = common_data.FACEANGLE
+    pitch_angle = common_data.PITCHANGLE
+    root_angle = common_data.ROOTANGLE  
+    front_angle = common_data.FRONTANGLE
+    back_angle = common_data.BACKANGLE
+    base_angle = common_data.BASECONEANGLE
+
+    pitch_apex = common_data.PITCHAPEX
+    face_apex = common_data.FACEAPEX
+    root_apex = common_data.ROOTAPEX
  
     # pitch-back cones intersection
     PB = np.array(
@@ -784,15 +783,15 @@ def rz_boundaries_computation(data: DesignData, member):
     R_face_heel = np.tan(np.deg2rad(face_angle)) * z_face_heel + np.tan(np.deg2rad(face_angle)) * face_apex
     R_face_toe = np.tan(np.deg2rad(face_angle)) * z_face_toe + np.tan(np.deg2rad(face_angle)) * face_apex
 
-    member_common_data.zROOTHEEL = z_root_heel
-    member_common_data.RROOTHEEL = R_root_heel
-    member_common_data.zROOTTOE = z_root_toe
-    member_common_data.RROOTTOE = R_root_toe
+    common_data.zROOTHEEL = z_root_heel
+    common_data.RROOTHEEL = R_root_heel
+    common_data.zROOTTOE = z_root_toe
+    common_data.RROOTTOE = R_root_toe
 
-    member_common_data.zFACEHEEL = z_face_heel
-    member_common_data.RFACEHEEL = R_face_heel
-    member_common_data.zFACETOE = z_face_toe
-    member_common_data.RFACETOE = R_face_toe
+    common_data.zFACEHEEL = z_face_heel
+    common_data.RFACEHEEL = R_face_heel
+    common_data.zFACETOE = z_face_toe
+    common_data.RFACETOE = R_face_toe
 
     zR = np.array([
         [z_root_toe, R_root_toe],
@@ -818,15 +817,12 @@ def PCA_computation(data: DesignData, member, side, EPGalpha, boundary_points, b
     np.ndarray: Transformed points in the other member's coordinate system.
     """
 
-    pinion_common, pinion_sub_common = get_data_field_names('pinion', 'concave', fields = 'common')
-    gear_common, gear_sub_common = get_data_field_names('gear', 'concave', fields = 'common')
-
     offset = data.system_data.hypoid_offset
     SIGMA = np.deg2rad(data.system_data.shaft_angle)
     u = data.system_data.ratio
     hand = data.system_data.hand
-    pinion_common_data = getattr(data, pinion_common)
-    gear_common_data = getattr(data, gear_common) 
+    pinion_common_data = data.pinion_common_data
+    gear_common_data = data.gear_common_data
     nP = pinion_common_data.NTEETH
     nG = gear_common_data.NTEETH
 
@@ -957,13 +953,15 @@ def gear_to_pin_rz(data: DesignData, points_gear, normals_gear, EPGalpha, guess 
 
 def zr_activeflank_bounds(data: DesignData, member, flank, zr_fillet):
 
-    common, sub_common = get_data_field_names(member, flank, fields = 'common')
+    common_data = data.gear_common_data
+    if member.lower() == 'pinion':
+        common_data = data.pinion_common_data
 
     # root points
     zr = np.vstack((zr_fillet[0, :], zr_fillet[-1, :]))
 
     #append face points
-    zr = np.vstack((zr, [data[common][f'{sub_common}zFACEHEEL'], data[common][f'{sub_common}RFACEHEEL']]))
-    zr = np.vstack((zr, [data[common][f'{sub_common}zFACETOE'], data[common][f'{sub_common}RFACETOE']]))
+    zr = np.vstack((zr, common_data.zFACEHEEL, common_data.RFACEHEEL))
+    zr = np.vstack((zr, common_data.zFACETOE, common_data.RFACETOE))
 
     return zr
