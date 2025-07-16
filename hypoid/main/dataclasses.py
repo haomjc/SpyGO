@@ -22,7 +22,6 @@ class SystemData:
     NOMINALCOASTPRESSUREANGLE: float = 0.0
     NORMALMODULE: float = 0.0
 
-
 # 🔵 Common gear/blank parameters (gear or pinion)
 @dataclass
 class CommonField:
@@ -68,8 +67,6 @@ class CommonField:
     RROOTTOE: float = None
     # Additional fields can be added as needed
 
-
-
 # 🔵 Cutter parameters (for a flank)
 @dataclass
 class CutterField:
@@ -86,7 +83,6 @@ class CutterField:
     flankremDEPTH: float = 0.0
     flankremRADIUS: float = 0.0
     flankremANGLE: float = 0.0
-
 
 # 🔵 Machine parameters (for a flank)
 @dataclass
@@ -128,13 +124,11 @@ class MachineField:
     HORIZONTAL: float = 0.0
     VERTICAL: float = 0.0
 
-
 # 🔵 Group the flanks for each member
 @dataclass
 class MemberFlankData:
     concave: MachineField = field(default_factory=MachineField)
     convex: MachineField = field(default_factory=MachineField)
-
 
 @dataclass
 class MemberCutterData:
