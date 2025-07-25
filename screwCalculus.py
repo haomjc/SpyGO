@@ -684,7 +684,8 @@ def RK4_step(x, u, xdot, dt, Nsteps = 1):
         a2 = xdot(x + h/2*a1, u)
         a3 = xdot(x + h/2*a2, u)
         a4 = xdot(x + h*a3, u)
-        return x + h/6*(a1+ 2*a2 + 2*a3 + a4)
+        x = x + h/6*(a1+ 2*a2 + 2*a3 + a4)
+    return x
     
 def RK4_step_parametric(x, u, xdot, dt, Nsteps = 1, parameters = None):
 
@@ -695,7 +696,8 @@ def RK4_step_parametric(x, u, xdot, dt, Nsteps = 1, parameters = None):
         a2 = xdot(x + h/2*a1, u, parameters)
         a3 = xdot(x + h/2*a2, u, parameters)
         a4 = xdot(x + h*a3, u, parameters)
-        return x + h/6*(a1+ 2*a2 + 2*a3 + a4)
+        x = x + h/6*(a1+ 2*a2 + 2*a3 + a4)
+    return x
 
 def RK4_step_implicit(x, u, xdot, dt, k_guess = None):
     """

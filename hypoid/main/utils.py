@@ -11,77 +11,6 @@ from solvers import *
 from general_utils import *
 from hypoid.main.dataclasses import DesignData
 
-def manage_machine_par(member, systemHand, mode = 'gleason'):
-    
-    # coefficient settings
-    if mode.lower() == 'gleason':
-        cMat = np.array([
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
-            [1, 1, 1/2, 1/6, 1/24, 1/120*1/1000, 1/720*1/1000, 1/5040],
-            [1 ,1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720*1/1000, 1/5040*1/1000],
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
-            [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040]
-        ])
-        cMat[[1,2,5,8], [0,0,0,0]] = cMat[[1,2,5,8], [0,0,0,0]]*pi/180
-
-    # sign settings
-
-    if member.lower() == 'pinion':
-        if systemHand.lower() == 'left':
-            signMat = np.array([
-                [+1, +1, +1, +1, +1, +1, +1, +1], # R radial motion
-                [-1, +1, +1, +1, +1, +1, +1, +1], # sig
-                [-1, +1, +1, +1, +1, +1, +1, +1], # zeta
-                [+1, +1, +1, +1, +1, +1, +1, +1], # E vertical motion
-                [+1, +1, +1, +1, +1, +1, +1, +1], # B sliding base (helical motion)
-                [-1, +1, +1, +1, +1, +1, +1, +1], # q cradle
-                [+1, +1, -1, -1, -1, -1, -1, -1], # roll
-                [+1, +1, +1, +1, +1, +1, +1, +1], # machCtr
-                [+1, +1, +1, +1 ,+1, +1, +1, +1], #root
-                ])
-        else: # right hand
-            signMat = np.array([
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [-1, -1, -1, -1, -1, -1, -1, -1],
-                [+1, -1, +1, -1, +1, -1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, -1, +1, -1, +1, -1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1 ,+1, +1, +1, +1]
-            ])
-    else: # gear
-        if systemHand.lower() == 'left':
-            signMat = np.array([
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [-1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [-1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, -1, -1, -1, -1, -1, -1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1 ,+1, +1, +1, +1]
-            ])
-        else: # right hand
-            signMat = np.array([
-                [+1, +1, +1, -1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, -1, +1, -1, +1, +1, +1],
-                [+1, -1, +1, -1, +1, -1, +1, -1],
-                [-1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, -1, +1, -1, +1, -1],
-                [+1, +1, +1, +1, +1, +1, +1, +1],
-                [+1, +1, +1, +1 ,+1, +1, +1, +1]
-            ])
-    return cMat, signMat
-
 def initial_guesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, gammaR, S0, Rp, RA):
     """
     A0 outer cone distance
@@ -127,7 +56,7 @@ def initial_guess_from_data(data:DesignData, member, flank): # wrapper for initi
     hand = data.system_data.hand.lower()
     toolvec = data.extract_tool_settings(member, flank)
     RawMachinePar = data.extract_machine_settings_matrix(member, flank)
-    cMat, signMat = manage_machine_par(member, hand)
+    cMat, signMat = DesignData.manage_machine_settings(member, hand)
     MachineParMatrix = cMat * signMat * RawMachinePar
     m = RawMachinePar[6, 1]
     MachineParMatrix[6, 2:] = MachineParMatrix[6, 2:] * m
@@ -326,7 +255,7 @@ def grid_to_rz(u, v, zR_bounds, method = 1):
 
     return z, R
 
-def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method = 1, rc0 = None, GearGenType = "Generated", gearTilt = 0):
+def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method = 1, rc0 = None, GearGenType = "Generated", gearTilt = 0) -> DesignData:
     
     rc0Flag = True
     if rc0 is None or rc0 is np.nan:
@@ -659,12 +588,13 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.pinion_common_data.FACEAPEX = tzF1
     basicDesignData.pinion_common_data.ROOTAPEX = tzR1
     basicDesignData.pinion_common_data.BASECONEAPEX = baseconApexPin
-    setattr(basicDesignData.pinion_common_data, 'MEANCUTTERRAIDUS', rc0)
-    setattr(basicDesignData.pinion_common_data, 'NORMAL_THICKNESS', smnc1)
-    setattr(basicDesignData.pinion_common_data, 'XVERSECIRCULAR', smt1)
-    setattr(basicDesignData.pinion_common_data, 'MEANNORMALCHORDALTHICKNESS', smnc1)
-    setattr(basicDesignData.pinion_common_data, 'MEANADDENDUM', ham1)
-    setattr(basicDesignData.pinion_common_data, 'MEANCHORDALADDENDUM', hamc1)
+    basicDesignData.pinion_common_data.MEANCUTTERRAIDUS = rc0
+    basicDesignData.pinion_common_data.NORMAL_THICKNESS = smnc1
+    basicDesignData.pinion_common_data.XVERSECIRCULAR = smt1
+    basicDesignData.pinion_common_data.MEANNORMALCHORDALTHICKNESS  = smnc1
+    basicDesignData.pinion_common_data.MEANADDENDUM = ham1
+    basicDesignData.pinion_common_data.MEANCHORDALADDENDUM = hamc1
+
 
     basicDesignData.gear_common_data.gen_type = 'GENERATED'
     basicDesignData.gear_common_data.NTEETH = z2
@@ -770,11 +700,11 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.gear_cutter_data.concave.TYPE = 'CURVED'
     basicDesignData.gear_cutter_data.concave.topremTYPE = 'NONE'
     basicDesignData.gear_cutter_data.concave.flankremTYPE = 'NONE'
-    basicDesignData.gear_cutter_data.concave.RHO = 800
-    basicDesignData.gear_cutter_data.concave.topremDEPTH = None
-    basicDesignData.gear_cutter_data.concave.TopremRADIUS = None
-    basicDesignData.gear_cutter_data.concave.flankremDEPTH = None
-    basicDesignData.gear_cutter_data.concave.flankremRADIUS = None
+    basicDesignData.gear_cutter_data.concave.RHO = 500
+    basicDesignData.gear_cutter_data.concave.topremDEPTH = 0
+    basicDesignData.gear_cutter_data.concave.TopremRADIUS = 0
+    basicDesignData.gear_cutter_data.concave.flankremDEPTH = 0
+    basicDesignData.gear_cutter_data.concave.flankremRADIUS = 0
 
     # convex
     basicDesignData.gear_cutter_data.convex.POINTRADIUS = pointRadiusConvex
@@ -783,11 +713,11 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.gear_cutter_data.convex.TYPE = 'CURVED'
     basicDesignData.gear_cutter_data.convex.topremTYPE = 'NONE'
     basicDesignData.gear_cutter_data.convex.flankremTYPE = 'NONE'
-    basicDesignData.gear_cutter_data.convex.RHO = 800
-    basicDesignData.gear_cutter_data.convex.topremDEPTH = None
-    basicDesignData.gear_cutter_data.convex.topremRADIUS = None
-    basicDesignData.gear_cutter_data.convex.flankremDEPTH = None
-    basicDesignData.gear_cutter_data.convex.flankremRADIUS = None
+    basicDesignData.gear_cutter_data.convex.RHO = 500
+    basicDesignData.gear_cutter_data.convex.topremDEPTH = 0
+    basicDesignData.gear_cutter_data.convex.topremRADIUS = 0
+    basicDesignData.gear_cutter_data.convex.flankremDEPTH = 0
+    basicDesignData.gear_cutter_data.convex.flankremRADIUS = 0
 
     # pinion cutter
     rc0P = rc0
@@ -813,10 +743,10 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.pinion_cutter_data.concave.TopremTYPE = 'NONE'
     basicDesignData.pinion_cutter_data.concave.FlankremTYPE = 'NONE'
     basicDesignData.pinion_cutter_data.concave.RHO = None
-    basicDesignData.pinion_cutter_data.concave.TopremDEPTH = None
-    basicDesignData.pinion_cutter_data.concave.TopremRADIUS = None
-    basicDesignData.pinion_cutter_data.concave.FlankremDEPTH = None
-    basicDesignData.pinion_cutter_data.concave.FlankremRADIUS = None
+    basicDesignData.pinion_cutter_data.concave.TopremDEPTH = 0
+    basicDesignData.pinion_cutter_data.concave.TopremRADIUS = 0
+    basicDesignData.pinion_cutter_data.concave.FlankremDEPTH = 0
+    basicDesignData.pinion_cutter_data.concave.FlankremRADIUS = 0
 
     # convex
     basicDesignData.pinion_cutter_data.convex.POINTRADIUS = pointRadiusConvex
@@ -826,10 +756,10 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.pinion_cutter_data.convex.TopremTYPE = 'NONE'
     basicDesignData.pinion_cutter_data.convex.FlankremTYPE = 'NONE'
     basicDesignData.pinion_cutter_data.convex.RHO = None
-    basicDesignData.pinion_cutter_data.convex.TopremDEPTH = None
-    basicDesignData.pinion_cutter_data.convex.TopremRADIUS = None
-    basicDesignData.pinion_cutter_data.convex.FlankremDEPTH = None
-    basicDesignData.pinion_cutter_data.convex.FlankremRADIUS = None
+    basicDesignData.pinion_cutter_data.convex.TopremDEPTH = 0
+    basicDesignData.pinion_cutter_data.convex.TopremRADIUS = 0
+    basicDesignData.pinion_cutter_data.convex.FlankremDEPTH = 0
+    basicDesignData.pinion_cutter_data.convex.FlankremRADIUS = 0
 
     return basicDesignData
 

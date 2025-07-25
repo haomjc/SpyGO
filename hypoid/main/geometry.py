@@ -16,7 +16,7 @@ def surface_sampling_casadi(data: DesignData, member, flank, sampling_size, trip
     n_face = sampling_size[0]
     n_prof = sampling_size[1]
     n_fillet = sampling_size[2]
-    HAND = data.system_data.HAND
+    HAND = data.system_data.hand
 
     blank_settings = list(data.extract_blank_settings(member))
     tool_settings = data.extract_tool_settings(member, flank)
@@ -395,7 +395,7 @@ def rz_sampling_casadi(R, Z, data: DesignData, member, flank, triplet_guess = No
     if data.gear_common_data.gen_type.lower() == 'formate' and member == 'gear':
         return rz_sampling_casadi_formate(R, Z, data, member, flank, triplet_guess)
 
-    system_hand = data.system_data.HAND
+    system_hand = data.system_data.hand
 
     # Kinematics definition
     if sb_machine:
@@ -497,7 +497,7 @@ def rz_sampling_NURBS_casadi(data: DesignData, member, flank, z, R, triplets):
 def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets_gear, interpolated_triplets_pin, offset_psi):
 
     hypoid_offset = data.system_data.hypoid_offset
-    HAND = data.system_data.HAND
+    HAND = data.system_data.hand
     ratio = data.system_data.ratio
     shaft_angle = data.system_data.shaft_angle*np.pi/180
 
@@ -510,7 +510,7 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
 
     # tool geometry and machine kinematics
     tool_settings = data.extract_tool_settings('gear', gear_flank)
-    p_tool, n_tool, _ = casadi_tool_fun(gear_flank, toprem=False, flankrem=False)
+    p_tool, n_tool, _ = casadi_tool_fun(gear_flank, toprem=True, flankrem=True)
     raw_machine_settings = data.extract_machine_settings_matrix('gear', gear_flank)
     ggt, Vgt, Vgt_spatial = casadi_machine_kinematics('gear', HAND)
 
@@ -560,7 +560,7 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
         pG_sym[0]**2 + pG_sym[1]**2 - R_sym**2,
         pG_sym[2]**2 - z_sym**2,
         ca.vertcat(nG_sym, 0).T @ Vgt_spatial(raw_machine_settings, phi) @ ca.vertcat(pG_sym, 1),
-        ca.vertcat(nG_sym, 0).T @ Vpg_g(psi - psi0, ratio*(psi - psi0), 1, ratio) @ ca.vertcat(pG_sym, 1)/100,
+        ca.vertcat(nG_sym, 0).T @ Vpg_g(psi - psi0, ratio*(psi - psi0), 1, ratio) @ ca.vertcat(pG_sym, 1),
         pG_sym - pG_expr[0:3],
         nG_sym - nG_expr[0:3]
     )
@@ -576,8 +576,8 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
         p = np.array([R[ii], z[ii]]).reshape(-1, 1)
         sol = solver(x0=x0, p=p)
 
-        # if solver.stats()['success'] == False:
-        #     raise Exception(f'Solver did not converge at point number {ii}')
+        if solver.stats()['success'] == False:
+            raise Exception(f'Solver did not converge at point number {ii}')
         
         res = sol['x'].full()
         csithetaphi[:, ii] = res[0:3].flatten()
@@ -723,8 +723,10 @@ def shaft_segment_computation(data:DesignData):
 def rz_boundaries_computation(data: DesignData, member):
 
     common_data = data.gear_common_data
+    root_angle = data.gear_machine_settings.concave.ROOTANGLE
     if member.lower() == 'pinion':
         common_data = data.pinion_common_data
+        root_angle = data.pinion_machine_settings.concave.ROOTANGLE
 
     O = common_data.OUTERCONEDIST
     Fw = common_data.FACEWIDTH
@@ -735,7 +737,6 @@ def rz_boundaries_computation(data: DesignData, member):
 
     face_angle = common_data.FACEANGLE
     pitch_angle = common_data.PITCHANGLE
-    root_angle = common_data.ROOTANGLE  
     front_angle = common_data.FRONTANGLE
     back_angle = common_data.BACKANGLE
     base_angle = common_data.BASECONEANGLE
@@ -961,7 +962,7 @@ def zr_activeflank_bounds(data: DesignData, member, flank, zr_fillet):
     zr = np.vstack((zr_fillet[0, :], zr_fillet[-1, :]))
 
     #append face points
-    zr = np.vstack((zr, common_data.zFACEHEEL, common_data.RFACEHEEL))
-    zr = np.vstack((zr, common_data.zFACETOE, common_data.RFACETOE))
+    zr = np.vstack((zr, [common_data.zFACEHEEL, common_data.RFACEHEEL]))
+    zr = np.vstack((zr, [common_data.zFACETOE, common_data.RFACETOE]))
 
     return zr

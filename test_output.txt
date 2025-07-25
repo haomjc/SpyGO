@@ -8,14 +8,21 @@ system_data:
    P: 0.0
    G: 0.0
    alpha: 0.0
+   taperType: Unkown
+   transmissionType: Bevel
+   NOMINALDRIVEPRESSUREANGLE: 0.0
+   NOMINALCOASTPRESSUREANGLE: 0.0
+   NORMALMODULE: 0.0
 
 gear_common_data:
    gen_type: 
    NTEETH: 0
    SPIRALANGLE: 0.0
    OUTERCONEDIST: 0.0
+   INNERCONEDIST: 0.0
+   MEANCONEDIST: None
    FACEWIDTH: 0.0
-   FACECANGLE: 0.0
+   FACEANGLE: 0.0
    BACKANGLE: 0.0
    FRONTANGLE: 0.0
    PITCHANGLE: 0.0
@@ -24,14 +31,36 @@ gear_common_data:
    FACEAPEX: 0.0
    ROOTAPEX: 0.0
    BASECONEAPEX: 0.0
+   MEANNORMALCHORDALTHICKNESS: None
+   MEANADDENDUM: None
+   MEANCHORDALADDENDUM: None
+   MEANCUTTERRAIDUS: None
+   NORMAL_THICKNESS: None
+   XVERSECIRCULAR: None
+   ShaftzB: 0.0
+   ShaftRB: 0.0
+   ShaftzA: 0.0
+   ShaftRA: 0.0
+   ShaftDiA: 0.0
+   ShaftDiB: 0.0
+   zFACEHEEL: None
+   RFACEHEEL: None
+   zFACETOE: None
+   RFACETOE: None
+   zROOTHEEL: None
+   RROOTHEEL: None
+   zROOTTOE: None
+   RROOTTOE: None
 
 pinion_common_data:
    gen_type: 
    NTEETH: 0
    SPIRALANGLE: 0.0
    OUTERCONEDIST: 0.0
+   INNERCONEDIST: 0.0
+   MEANCONEDIST: None
    FACEWIDTH: 0.0
-   FACECANGLE: 0.0
+   FACEANGLE: 0.0
    BACKANGLE: 0.0
    FRONTANGLE: 0.0
    PITCHANGLE: 0.0
@@ -40,6 +69,26 @@ pinion_common_data:
    FACEAPEX: 0.0
    ROOTAPEX: 0.0
    BASECONEAPEX: 0.0
+   MEANNORMALCHORDALTHICKNESS: None
+   MEANADDENDUM: None
+   MEANCHORDALADDENDUM: None
+   MEANCUTTERRAIDUS: None
+   NORMAL_THICKNESS: None
+   XVERSECIRCULAR: None
+   ShaftzB: 0.0
+   ShaftRB: 0.0
+   ShaftzA: 0.0
+   ShaftRA: 0.0
+   ShaftDiA: 0.0
+   ShaftDiB: 0.0
+   zFACEHEEL: None
+   RFACEHEEL: None
+   zFACETOE: None
+   RFACETOE: None
+   zROOTHEEL: None
+   RROOTHEEL: None
+   zROOTTOE: None
+   RROOTTOE: None
 
 gear_machine_settings:
 
@@ -77,6 +126,8 @@ gear_machine_settings:
       R4: 0.0
       R5: 0.0
       R6: 0.0
+      HORIZONTAL: 0.0
+      VERTICAL: 0.0
 
    convex:
       RADIALSETTING: 0.0
@@ -112,6 +163,8 @@ gear_machine_settings:
       R4: 0.0
       R5: 0.0
       R6: 0.0
+      HORIZONTAL: 0.0
+      VERTICAL: 0.0
 
 pinion_machine_settings:
 
@@ -149,6 +202,8 @@ pinion_machine_settings:
       R4: 0.0
       R5: 0.0
       R6: 0.0
+      HORIZONTAL: 0.0
+      VERTICAL: 0.0
 
    convex:
       RADIALSETTING: 0.0
@@ -184,6 +239,8 @@ pinion_machine_settings:
       R4: 0.0
       R5: 0.0
       R6: 0.0
+      HORIZONTAL: 0.0
+      VERTICAL: 0.0
 
 gear_cutter_data:
 
@@ -191,9 +248,9 @@ gear_cutter_data:
       POINTRADIUS: 0.0
       BLADEANGLE: 0.0
       EDGERADIUS: 0.0
-      TYPE: STRAIGHT
+      TYPE: NONE
       topremTYPE: NONE
-      flankrem_type: NONE
+      flankremTYPE: NONE
       RHO: 0.0
       topremDEPTH: 0.0
       topremRADIUS: 0.0
@@ -206,9 +263,9 @@ gear_cutter_data:
       POINTRADIUS: 0.0
       BLADEANGLE: 0.0
       EDGERADIUS: 0.0
-      TYPE: STRAIGHT
+      TYPE: NONE
       topremTYPE: NONE
-      flankrem_type: NONE
+      flankremTYPE: NONE
       RHO: 0.0
       topremDEPTH: 0.0
       topremRADIUS: 0.0
@@ -223,9 +280,9 @@ pinion_cutter_data:
       POINTRADIUS: 0.0
       BLADEANGLE: 0.0
       EDGERADIUS: 0.0
-      TYPE: STRAIGHT
+      TYPE: NONE
       topremTYPE: NONE
-      flankrem_type: NONE
+      flankremTYPE: NONE
       RHO: 0.0
       topremDEPTH: 0.0
       topremRADIUS: 0.0
@@ -238,9 +295,9 @@ pinion_cutter_data:
       POINTRADIUS: 0.0
       BLADEANGLE: 0.0
       EDGERADIUS: 0.0
-      TYPE: STRAIGHT
+      TYPE: NONE
       topremTYPE: NONE
-      flankrem_type: NONE
+      flankremTYPE: NONE
       RHO: 0.0
       topremDEPTH: 0.0
       topremRADIUS: 0.0

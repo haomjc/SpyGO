@@ -67,6 +67,8 @@ class CommonField:
     RROOTTOE: float = None
     # Additional fields can be added as needed
 
+    USE_SPRD_BLD_THICKNESS: bool = False
+
 # 🔵 Cutter parameters (for a flank)
 @dataclass
 class CutterField:
@@ -153,39 +155,39 @@ class DesignData:
         else:
             machine_settings = getattr(self.pinion_machine_settings, flank.lower())
 
-            S0    = machine_settings.RADIALSETTING
-            sig0  = machine_settings.TILTANGLE
-            z0    = machine_settings.SWIVELANGLE
-            E0    = machine_settings.BLANKOFFSET
-            gam0  = machine_settings.ROOTANGLE
-            D0    = machine_settings.MACHCTRBACK
-            B0    = machine_settings.SLIDINGBASE
-            q0    = machine_settings.CRADLEANGLE
-            m     = machine_settings.RATIOROLL
-            C2    = machine_settings.C2
-            D6    = machine_settings.D6
-            E24   = machine_settings.E24
-            F120  = machine_settings.F120
-            G720  = machine_settings.G720
-            H5040 = machine_settings.H5040
-            B1    = machine_settings.H1
-            B2    = machine_settings.H2
-            B3    = machine_settings.H3
-            B4    = machine_settings.H4
-            B5    = machine_settings.H5
-            B6    = machine_settings.H6
-            E1    = machine_settings.V1
-            E2    = machine_settings.V2
-            E3    = machine_settings.V3
-            E4    = machine_settings.V4
-            E5    = machine_settings.V5
-            E6    = machine_settings.V6
-            S1    = machine_settings.R1
-            S2    = machine_settings.R2
-            S3    = machine_settings.R3
-            S4    = machine_settings.R4
-            S5    = machine_settings.R5
-            S6    = machine_settings.R6
+        S0    = machine_settings.RADIALSETTING
+        sig0  = machine_settings.TILTANGLE
+        z0    = machine_settings.SWIVELANGLE
+        E0    = machine_settings.BLANKOFFSET
+        gam0  = machine_settings.ROOTANGLE
+        D0    = machine_settings.MACHCTRBACK
+        B0    = machine_settings.SLIDINGBASE
+        q0    = machine_settings.CRADLEANGLE
+        m     = machine_settings.RATIOROLL
+        C2    = machine_settings.C2
+        D6    = machine_settings.D6
+        E24   = machine_settings.E24
+        F120  = machine_settings.F120
+        G720  = machine_settings.G720
+        H5040 = machine_settings.H5040
+        B1    = machine_settings.H1
+        B2    = machine_settings.H2
+        B3    = machine_settings.H3
+        B4    = machine_settings.H4
+        B5    = machine_settings.H5
+        B6    = machine_settings.H6
+        E1    = machine_settings.V1
+        E2    = machine_settings.V2
+        E3    = machine_settings.V3
+        E4    = machine_settings.V4
+        E5    = machine_settings.V5
+        E6    = machine_settings.V6
+        S1    = machine_settings.R1
+        S2    = machine_settings.R2
+        S3    = machine_settings.R3
+        S4    = machine_settings.R4
+        S5    = machine_settings.R5
+        S6    = machine_settings.R6
 
         if member.lower() == 'gear' and self.gear_common_data.gen_type.lower() == 'formate':
             H = machine_settings.HORIZONTAL
@@ -239,7 +241,7 @@ class DesignData:
 
         # face cone
         dfa = common_settings.FACEAPEX
-        gammaF = common_settings.FACECANGLE
+        gammaF = common_settings.FACEANGLE
 
         # root cone
         dra = common_settings.ROOTAPEX
@@ -294,11 +296,11 @@ class DesignData:
             topremDEPTH = tool_settings.topremDEPTH
             topremRADIUS = RHO_STRAIGHT
         else: # feature disabled
-            topremRADIUS = 100
+            topremRADIUS = 1000
             Czblade = RHO*sin(BLADEANGLE*pi/180)
             theta_iniz_blade = asin((Czblade + EDGERADIUS)/(RHO + EDGERADIUS))
         
-            topremDEPTH = EDGERADIUS - EDGERADIUS*sin(theta_iniz_blade)
+            topremDEPTH = EDGERADIUS*(1-sin(theta_iniz_blade))
             topremANGLE = 0
             if tool_settings.topremANGLE != 0:
                 msgbox("Tool with angle offset between tip & blade (toprem angle) not implemented", 'Error', 1)
@@ -312,46 +314,160 @@ class DesignData:
             flankremRADIUS = RHO_STRAIGHT
         else: # feature diabled
             flankremRADIUS = RHO
-            if flankremDEPTH is None:
-                flankremDEPTH = RHO/3
+            flankremDEPTH = RHO/3
             flankremANGLE = 0
             if tool_settings.topremANGLE != 0:
                 msgbox("Tool with angle offset blade and flanrem (flankrem angle) not implemented", 'Error', 1)
 
         return (POINTRADIUS, RHO, EDGERADIUS, topremRADIUS, flankremRADIUS, BLADEANGLE, flankremDEPTH, topremDEPTH, topremANGLE, flankremANGLE)
         
+    @staticmethod
+    def manage_machine_settings(member, systemHand, mode = 'gleason'):
+        
+        # coefficient settings
+        if mode.lower() == 'gleason':
+            cMat = np.array([
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
+                [1, 1, 1/2, 1/6, 1/24, 1/120*1/1000, 1/720*1/1000, 1/5040],
+                [1 ,1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720*1/1000, 1/5040*1/1000],
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040],
+                [1, 1, 1/2, 1/6, 1/24, 1/120, 1/720, 1/5040]
+            ])
+            cMat[[1,2,5,8], [0,0,0,0]] = cMat[[1,2,5,8], [0,0,0,0]]*pi/180
 
-def initialize_design_data() -> DesignData:
-    return DesignData()
+        # sign settings
 
+        if member.lower() == 'pinion':
+            if systemHand.lower() == 'left':
+                signMat = np.array([
+                    [+1, +1, +1, +1, +1, +1, +1, +1], # R radial motion
+                    [-1, +1, +1, +1, +1, +1, +1, +1], # sig
+                    [-1, +1, +1, +1, +1, +1, +1, +1], # zeta
+                    [+1, +1, +1, +1, +1, +1, +1, +1], # E vertical motion
+                    [+1, +1, +1, +1, +1, +1, +1, +1], # B sliding base (helical motion)
+                    [-1, +1, +1, +1, +1, +1, +1, +1], # q cradle
+                    [+1, +1, -1, -1, -1, -1, -1, -1], # roll
+                    [+1, +1, +1, +1, +1, +1, +1, +1], # machCtr
+                    [+1, +1, +1, +1 ,+1, +1, +1, +1], #root
+                    ])
+            else: # right hand
+                signMat = np.array([
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [-1, -1, -1, -1, -1, -1, -1, -1],
+                    [+1, -1, +1, -1, +1, -1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, -1, +1, -1, +1, -1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1 ,+1, +1, +1, +1]
+                ])
+        else: # gear
+            if systemHand.lower() == 'left':
+                signMat = np.array([
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [-1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [-1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, -1, -1, -1, -1, -1, -1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1 ,+1, +1, +1, +1]
+                ])
+            else: # right hand
+                signMat = np.array([
+                    [+1, +1, +1, -1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, -1, +1, -1, +1, +1, +1],
+                    [+1, -1, +1, -1, +1, -1, +1, -1],
+                    [-1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, -1, +1, -1, +1, -1],
+                    [+1, +1, +1, +1, +1, +1, +1, +1],
+                    [+1, +1, +1, +1 ,+1, +1, +1, +1]
+                ])
+        return cMat, signMat
 # dataclasses for gear/pinion concave/convex data attributes of Hypoid object
 
 @dataclass
 class flankData:
     concave: object = field(default_factory=list)
     convex: object = field(default_factory=list)
-
-class flankDataWithBoth:
-    concave: object = field(default_factory=list)
-    convex: object = field(default_factory=list)    
-    both: object = field(default_factory=list)
+    both: object = field(default_factory=list) # structures that share data for both flanks (i.e. Nurbs for both flanks)
 
 @dataclass
-class FlankAndMemberNumericalData:
+class FlankNumericalData:
     gear: flankData = field(default_factory=flankData)
     pinion: flankData = field(default_factory=flankData)
 
-@dataclass
-class FlankAndMemberNumericalDataWithBoth:
-    gear: flankDataWithBoth = field(default_factory=flankDataWithBoth)
-    pinion: flankDataWithBoth = field(default_factory=flankDataWithBoth)
+    def set_value(self, member, flank, result):
+        if member.lower() == 'gear':
+            member_data = self.gear
+        else:
+            member_data = self.pinion
+
+        if flank.lower() == 'concave':
+            member_data.concave = result
+        elif flank.lower() == 'convex':
+            member_data.convex = result
+        else:
+            member_data.both = result
+        
+        return
+    
+    def get_value(self, member, flank):
+        if member.lower() == 'gear':
+            member_data = self.gear
+        else:
+            member_data = self.pinion
+
+        if flank.lower() == 'concave':
+            return member_data.concave
+        elif flank.lower() == 'convex':
+            return member_data.convex
+        else:
+            return member_data.both
 
 @dataclass
 class MemberData:
     gear: object = field(default_factory=list)
     pinion: object = field(default_factory=list)
 
-def numerical_template_data() -> FlankAndMemberNumericalData:
-    return FlankAndMemberNumericalData()
+@dataclass
+class identificationProblemData:
+    designData: DesignData = field(default_factory=DesignData)
+    gear: flankData = field(default_factory=flankData)
+    pinion: flankData = field(default_factory=flankData)
 
+    def get_value(self, member, flank):
+        if member.lower() == 'gear':
+            member_data = self.gear
+        else:
+            member_data = self.pinion
 
+        if flank.lower() == 'concave':
+            return member_data.concave
+        elif flank.lower() == 'convex':
+            return member_data.convex
+        else:
+            return member_data.both
+    
+    def set_value(self, member, flank, result):
+        if member.lower() == 'gear':
+            member_data = self.gear
+        else:
+            member_data = self.pinion
+
+        if flank.lower() == 'concave':
+            member_data.concave = result
+        elif flank.lower() == 'convex':
+            member_data.convex = result
+        else:
+            member_data.both = result
+        
+        return

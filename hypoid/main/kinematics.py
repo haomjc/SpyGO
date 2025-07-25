@@ -122,7 +122,7 @@ def casadi_machine_kinematics(member, systemHand, casadi_type = 'SX'):
     casadi_var = getattr(ca, casadi_type)
     machine_matrix = casadi_var.sym('M', 9, 8)
     auxiliary_mat = machine_matrix
-    [cMat, sMat] = manage_machine_par(member, systemHand)
+    [cMat, sMat] = DesignData.manage_machine_settings(member, systemHand)
     cMat = cMat*sMat
     roll = auxiliary_mat[6,1]
     auxiliary_mat = cMat*auxiliary_mat
@@ -279,7 +279,7 @@ def tool_casadi(flank, settings, topremCheck = True):
     alphaTop = settings[8] * np.pi / 180  # toprem angle
     alphaFlank = settings[9] * np.pi / 180  # flankrem angle
     
-    if topremCheck == False:
+    if topremCheck == False or topremCheck == None:
         Czblade = rho * np.sin(alphap)
         theta_iniz_blade = np.arcsin((Czblade + rhof) / (rho + rhof))
         stftop = rhof - rhof * np.sin(theta_iniz_blade)  # ***!!!*** THIS CONSIDERING alphaTop = 0
@@ -464,7 +464,7 @@ def casadi_tool_fun(flank, toprem = None, flankrem = None, casadi_type = 'SX'):
     # tool surface variables
     csi = casadi_var.sym('csi');
     theta = casadi_var.sym('theta');
-    if toprem == None and flankrem == None:
+    if (toprem == None and flankrem == None) or (toprem == False and flankrem == False):
         p, n, L = tool_casadi_blade(flank, tool_settings)
     else:
         p, n, L = tool_casadi(flank, tool_settings, topremCheck = True)
