@@ -37,10 +37,10 @@ def surface_sampling_casadi(data: DesignData, member, flank, sampling_size, trip
     
     p_tool_fun, n_tool_fun, _ = casadi_tool_fun(flank, toprem=True, flankrem=True)
 
-    p_tool = p_tool_fun(tool_settings, reduce_2d(surfVars[0:2])).full().reshape((3, surfVars.shape[1], surfVars.shape[2]))
-    n_tool = n_tool_fun(tool_settings, reduce_2d(surfVars[0:2])).full().reshape((3, surfVars.shape[1], surfVars.shape[2]))
+    p_tool = p_tool_fun(tool_settings, reduce_2d(surfVars[0:2])).full().reshape((3, surfVars.shape[1], surfVars.shape[2]), order = 'F')
+    n_tool = n_tool_fun(tool_settings, reduce_2d(surfVars[0:2])).full().reshape((3, surfVars.shape[1], surfVars.shape[2]), order = 'F')
 
-    z_tool = p_tool[2,:,:].reshape(-1,).min()
+    z_tool = p_tool[2,:,:].reshape(-1, order = 'F').min()
 
     return points, normals, p_tool, n_tool, surfVars, z_tool, pointsFillet, pointsRoot, normalsRoot, rootVars, pointsBounds, normalsBounds
 
@@ -160,10 +160,10 @@ def tooth_sampling_casadi(machine_settings, tool_settings, blank_settings, membe
         guess = surface_sol[1:, ii, 0]
 
         for kk in range(1, n_fillet): # first row is the root line
-            csi_value = csi_edge_blade*(kk)/(n_fillet)
+            csi_value = csi_edge_blade*(kk)/(n_fillet-1)
             result = solver_flank(x0 = guess, p = ca.vertcat(csi_value[0], c_value))
             sol = result['x'].full()
-            surface_sol[:, ii, kk] = np.r_[csi_value, sol].flatten()
+            surface_sol[:, ii, kk] = np.r_[csi_value, sol].flatten(order = 'F')
             guess = sol
             if kk == n_fillet-1:   # flank-fillet transition line
                 flank_fillet_sol[:, ii] = surface_sol[:, ii, kk]
@@ -199,7 +199,7 @@ def tooth_sampling_casadi(machine_settings, tool_settings, blank_settings, membe
     for ii in range(0, n_face):
         c_value = Fw*ii/(n_face-1)
         res = solver_head(x0 = guess, p = c_value)
-        sol = res['x'].full().reshape(-1,)
+        sol = res['x'].full().reshape(-1, order = 'F')
         surface_sol[:, ii, -1] = sol
         guess = sol
         head_sol[:, ii] = sol
@@ -469,7 +469,7 @@ def rz_sampling_casadi(R, Z, data: DesignData, member, flank, triplet_guess = No
             p_num = (G_num @ ca.vertcat(pT(toolvec, [guess[0], guess[1]]), 1)).full()
             n_num = (G_num @ ca.vertcat(nT(toolvec, [guess[0], guess[1]]), 0)).full()
 
-            guess_sparse = np.hstack([guess.flatten(), p_num[0:3].flatten(), n_num[0:3].flatten()])
+            guess_sparse = np.hstack([guess.flatten(order = 'F'), p_num[0:3].flatten(order = 'F'), n_num[0:3].flatten(order = 'F')])
             try:
                 res = SolverRoot(x0=guess_sparse, p=np.array([R[ii, jj], Z[ii, jj]]))
                 res = res['x'].full()
@@ -480,8 +480,8 @@ def rz_sampling_casadi(R, Z, data: DesignData, member, flank, triplet_guess = No
                 res = res['x'].full()
 
             triplets[:, ii, jj] = res[0:3,0]
-            xyzbase[:, ii, jj] = (ggt(machine_par_matrix, res[2]) @ca.vertcat(pT(toolvec, [res[0], res[1]]), 1)).full().flatten()
-            normalsbase[:, ii, jj] = (ggt(machine_par_matrix, res[2]) @ ca.vertcat(nT(toolvec, [res[0], res[1]]), 0)).full().flatten()
+            xyzbase[:, ii, jj] = (ggt(machine_par_matrix, res[2]) @ca.vertcat(pT(toolvec, [res[0], res[1]]), 1)).full().flatten(order = 'F')
+            normalsbase[:, ii, jj] = (ggt(machine_par_matrix, res[2]) @ ca.vertcat(nT(toolvec, [res[0], res[1]]), 0)).full().flatten(order = 'F')
 
             if triplet_guess is None or len(triplet_guess) == 0:
                 guess[:] = triplets[:, ii, jj]
@@ -552,8 +552,8 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
     nG_expr = G @ n_tool_expr
     pG_fun = ca.Function('pg', [ca.vertcat(csi, theta, phi)], [pG_expr[0:3]])
     nG_fun = ca.Function('ng', [ca.vertcat(csi, theta, phi)], [nG_expr[0:3]])
-    pg_num = pG_fun(ca.vertcat(triplets_gear[0, :].reshape(1, -1), triplets_gear[1, :].reshape(1, -1), triplets_gear[2, :].reshape(1, -1))).full()
-    ng_num = nG_fun(ca.vertcat(triplets_gear[0, :].reshape(1, -1), triplets_gear[1, :].reshape(1, -1), triplets_gear[2, :].reshape(1, -1))).full()
+    pg_num = pG_fun(ca.vertcat(triplets_gear[0, :].reshape(1, -1, order = 'F'), triplets_gear[1, :].reshape(1, -1, order = 'F'), triplets_gear[2, :].reshape(1, -1, order = 'F'))).full()
+    ng_num = nG_fun(ca.vertcat(triplets_gear[0, :].reshape(1, -1, order = 'F'), triplets_gear[1, :].reshape(1, -1, order = 'F'), triplets_gear[2, :].reshape(1, -1, order = 'F'))).full()
 
 
     equations = ca.vertcat(
@@ -572,23 +572,23 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
     phi_P0 = 0
     triplets_gear[0, :] = triplets_gear[0, :] + 0.2
     for ii in range(num_points):
-        x0 = np.vstack([triplets_gear[:, ii].reshape(-1, 1), psi_G[ii].reshape(-1, 1), pg_num[0:3, ii].reshape(-1, 1), ng_num[0:3, ii].reshape(-1, 1)])
-        p = np.array([R[ii], z[ii]]).reshape(-1, 1)
+        x0 = np.vstack([triplets_gear[:, ii].reshape(-1, 1, order = 'F'), psi_G[ii].reshape(-1, 1, order = 'F'), pg_num[0:3, ii].reshape(-1, 1, order = 'F'), ng_num[0:3, ii].reshape(-1, 1, order = 'F')])
+        p = np.array([R[ii], z[ii]]).reshape(-1, 1, order = 'F')
         sol = solver(x0=x0, p=p)
 
         if solver.stats()['success'] == False:
             raise Exception(f'Solver did not converge at point number {ii}')
         
         res = sol['x'].full()
-        csithetaphi[:, ii] = res[0:3].flatten()
-        gear_points[:, ii] = res[4:7].flatten()
-        gear_normals[:, ii] = res[7:10].flatten()
+        csithetaphi[:, ii] = res[0:3].flatten(order = 'F')
+        gear_points[:, ii] = res[4:7].flatten(order = 'F')
+        gear_normals[:, ii] = res[7:10].flatten(order = 'F')
 
         psi_G[ii] = res[3]
         psi_P[ii] = ratio * (psi_G[ii] - psi_G0)
         T = Tpg(psi_G[ii] - psi_G0, psi_P[ii])
-        conjugate_points[:, ii] = (T @ np.hstack((gear_points[:, ii], 1)).reshape(-1, 1)).squeeze()
-        conjugate_normals[:, ii] = (T @ np.hstack([gear_normals[:, ii], 0]).reshape(-1, 1)).squeeze()
+        conjugate_points[:, ii] = (T @ np.hstack((gear_points[:, ii], 1)).reshape(-1, 1, order = 'F')).squeeze()
+        conjugate_normals[:, ii] = (T @ np.hstack([gear_normals[:, ii], 0]).reshape(-1, 1, order = 'F')).squeeze()
         V = Vpg_g(psi_G[ii] - psi_G0, ratio*(psi_G[ii] - psi_G0), 1, ratio).full()
         omega[:, ii] = sc.vecForm(V[0:3, 0:3])
         Vpg_g_num[:, ii] = V @ np.hstack([gear_points[:, ii], 1])

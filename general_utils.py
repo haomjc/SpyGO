@@ -221,11 +221,11 @@ def IPOPT_global_options():
             # 'line_search_method': 'cg-penalty',
             'print_level': 5,
             'recalc_y': 'yes',
-            # 'watchdog_shortened_iter_trigger': 0,
-            # 'warm_start_init_point': 'yes',
+            'watchdog_shortened_iter_trigger': 0,
+            'warm_start_init_point': 'yes',
             # 'mu_init': 1e-3,
             # 'mu_oracle': 'probing',
-            'alpha_for_y': 'primal',
+            'alpha_for_y': 'safer-min-dual-infeas',
             'mu_strategy': 'adaptive', # 'adaptive'; % 'monotone'; %
             'adaptive_mu_globalization': 'never-monotone-mode'
             # 'min_refinement_steps': 20,
@@ -350,6 +350,37 @@ def set_data_aspect_ratio(ax, aspect_ratio):
 
 def s_runge_map(x, a, b):
     return ((a-b)*np.cos(np.pi*(x - a)/(b - a)) + a+b)/2
+
+def from_dict_recursive(cls, data):
+    """
+    Reconstructs a dataclass instance (with possible nesting) from a dictionary.
+    """
+    if not is_dataclass(cls):
+        raise ValueError(f"{cls} is not a dataclass")
+
+    field_types = {f.name: f.type for f in fields(cls)}
+    kwargs = {}
+
+    for name, value in data.items():
+        field_type = field_types.get(name)
+
+        # If the field type is itself a dataclass, recurse
+        if is_dataclass(field_type) and isinstance(value, dict):
+            kwargs[name] = from_dict_recursive(field_type, value)
+
+        # If it's a list of dataclasses
+        elif (
+            hasattr(field_type, '__origin__') and
+            field_type.__origin__ == list and
+            is_dataclass(field_type.__args__[0])
+        ):
+            inner_type = field_type.__args__[0]
+            kwargs[name] = [from_dict_recursive(inner_type, item) for item in value]
+
+        else:
+            kwargs[name] = value
+
+    return cls(**kwargs)
 
 def main():
     points = np.random.rand(10, 2)  # 10 points in 2D space

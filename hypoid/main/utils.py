@@ -9,7 +9,7 @@ import screwCalculus as sc
 from solvers import *
 
 from general_utils import *
-from hypoid.main.dataclasses import DesignData
+from hypoid.main.data_structs import DesignData
 
 def initial_guesses(A0, Fw, gammaP, gammaF, member, hand, q0, z0, beta, machCtr, gammaR, S0, Rp, RA):
     """
@@ -71,7 +71,7 @@ def initial_guess_from_data(data:DesignData, member, flank): # wrapper for initi
     
     return triplet_guess
 
-def machine_settings_index():
+def machine_settings_index(completing = False):
     
     dict = {
         'RADIALSETTING': 0,
@@ -88,13 +88,39 @@ def machine_settings_index():
         'ZETA1': 11, 'ZETA2': 20, 'ZETA3': 29, 'ZETA4': 38, 'ZETA5': 47, 'ZETA6': 56, 'ZETA7': 65,
         'V1': 12, 'V2': 21, 'V3': 30, 'V4': 39, 'V5': 48, 'V6': 57, 'V7': 66,
         'H1': 13, 'H2': 22, 'H3': 31, 'H4': 40, 'H5': 49, 'H6': 58, 'H7': 67,
-        'Q1': 14, 'Q2': 23, 'Q3': 32, 'Q4': 41, 'Q5': 50, 'Q6': 59, 'Q7': 68,
+        'CRADLE1': 14, 'CRADLE2': 23, 'CRADLE3': 32, 'CRADLE4': 41, 'CRADLE5': 50, 'CRADLE6': 59, 'CRADLE7': 68,
         'RATIOROLL': 15, 'C2': 24, 'D6': 33, 'E24': 42, 'F120': 51, 'G720': 60, 'H5040': 69,
-        'D1': 16, 'D2': 25, 'D3': 34, 'D4': 43, 'D5': 52, 'D6': 61, 'D7': 70,
+        'MB1': 16, 'MB2': 25, 'MB3': 34, 'MB4': 43, 'MB5': 52, 'MB6': 61, 'MB7': 70,
         'GAMMA1': 17, 'GAMMA2': 26, 'GAMMA3': 35, 'GAMMA4': 44, 'GAMMA5': 53, 'GAMMA6': 62, 'GAMMA7': 71,
-        'POINTRADIUS': 72, 'SPHERICALRADIUS': 73, 'EDGERADIUS': 74, 'TOPREMRADIUS' : 75, 'FLANKREMRADIUS' : 76,
-        'BLADEANGLE': 77, 'TOPREMDEPTH': 78, 'FLANKREMDEPTH': 79, 'TOPREMANGLE': 80, 'FLANKREMANGLE': 81
+        'POINTRADIUS': 72, 'EDGERADIUS': 73, 'SPHERICALRADIUS': 74, 'BLADEANGLE' : 75,
+        'TOPREMDEPTH' : 76, 'TOPREMRADIUS': 77, 'TOPREMANGLE': 78, 'FLANKREMDEPTH': 79, 'FLANKREMRADIUS': 80, 'FLANKREMANGLE': 81
     }
+
+    if completing:
+            dict = {
+            'RADIALSETTING': 0,
+            'TILTANGLE': 1,
+            'SWIVELANGLE': 2,
+            'BLANKOFFSET': 3,
+            'SLIDINGBASE': 4,
+            'CRADLEANGLE': 5,
+            'INDEXANGLE': 6,
+            'MACHCTRBACK': 7,
+            'ROOTANGLE': 8,
+            'R1': 9, 'R2': 18, 'R3': 27, 'R4': 36, 'R5': 45, 'R6': 54, 'R7': 63,
+            'SIGMA1': 10, 'SIGMA2': 19, 'SIGMA3': 28, 'SIGMA4': 37, 'SIGMA5': 46, 'SIGMA6': 55, 'SIGMA7': 64,
+            'ZETA1': 11, 'ZETA2': 20, 'ZETA3': 29, 'ZETA4': 38, 'ZETA5': 47, 'ZETA6': 56, 'ZETA7': 65,
+            'V1': 12, 'V2': 21, 'V3': 30, 'V4': 39, 'V5': 48, 'V6': 57, 'V7': 66,
+            'H1': 13, 'H2': 22, 'H3': 31, 'H4': 40, 'H5': 49, 'H6': 58, 'H7': 67,
+            'CRADLE1': 14, 'CRADLE2': 23, 'CRADLE3': 32, 'CRADLE4': 41, 'CRADLE5': 50, 'CRADLE6': 59, 'CRADLE7': 68,
+            'RATIOROLL': 15, 'C2': 24, 'D6': 33, 'E24': 42, 'F120': 51, 'G720': 60, 'H5040': 69,
+            'MB1': 16, 'MB2': 25, 'MB3': 34, 'MB4': 43, 'MB5': 52, 'MB6': 61, 'MB7': 70,
+            'GAMMA1': 17, 'GAMMA2': 26, 'GAMMA3': 35, 'GAMMA4': 44, 'GAMMA5': 53, 'GAMMA6': 62, 'GAMMA7': 71,
+            'MEANCUTTERRADIUS': 72, 'POINTWIDTH': 73, 'EDGERADIUS': 74, 'SPHERICALRADIUS': 75, 'BLADEANGLE' : 76,
+            'TOPREMDEPTH' : 77, 'TOPREMRADIUS': 78, 'TOPREMANGLE': 79, 'FLANKREMDEPTH': 80, 'FLANKREMRADIUS': 81, 'FLANKREMANGLE': 82,
+            'EDGERADIUS_CVX':83, 'SPHERICALRADIUS_CVX': 84, 'BLADEANGLE_CVX' : 85,
+            'TOPREMDEPTH_CVX' : 86, 'TOPREMRADIUS_CVX': 87, 'TOPREMANGLE_CVX': 88, 'FLANKREMDEPTH_CVX': 89, 'FLANKREMRADIUS_CVX': 90, 'FLANKREMANGLE_CVX': 90,
+        }
 
     return dict
 
@@ -182,8 +208,8 @@ def rz_to_grid(zstar, Rstar, zRBounds, method = 1):
         N4_ev = N4(u_val, v_val)
 
         fun = np.concatenate([
-            N1_ev * z1 + N2_ev * z2 + N3_ev * z3 + N4_ev * z4 - zstar.flatten(),
-            N1_ev * R1 + N2_ev * R2 + N3_ev * R3 + N4_ev * R4 - Rstar.flatten()
+            N1_ev * z1 + N2_ev * z2 + N3_ev * z3 + N4_ev * z4 - zstar.flatten(order = 'F'),
+            N1_ev * R1 + N2_ev * R2 + N3_ev * R3 + N4_ev * R4 - Rstar.flatten(order = 'F')
         ])
 
         if output.lower() == 'fun':
@@ -688,9 +714,9 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     PQ = (hfm2 - ham2)/2
     P0N = hfm2*cos(thetaf2) - PQ*cos(thetaf2)
     Np = z2*cos(thetaf2)/sin(delta2)
-    pointRadiusConcave = rc0 + smnc2/2
-    pointRadiusConvex = rc0 - smnc2/2
-    edgeRadius = 0.15*met
+    pointRadiusConcave = rc0 + smnc1/2 - mmn*1.25*tan(alphaeC);
+    pointRadiusConvex = rc0 -(smnc1/2 - mmn*1.25*tan(alphaeD))
+    edgeRadius = 0.05*met
 
     # gear cutter
     # concave
@@ -732,8 +758,8 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
             case "trl":
                 rc0P = (Rm1 + 1.1*Rm1*sin(betam1))/2
 
-    pointRadiusConcave = rc0P + smnc1/2
-    pointRadiusConvex = rc0P - smnc1/2
+    pointRadiusConcave = rc0 + smnc2/2 - mmn*1.25*tan(alphaeD)
+    pointRadiusConvex = rc0P - (smnc2/2 - mmn*1.25*tan(alphaeC))
 
     # concave
     basicDesignData.pinion_cutter_data.concave.POINTRADIUS = pointRadiusConcave
@@ -762,6 +788,57 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.pinion_cutter_data.convex.FlankremRADIUS = 0
 
     return basicDesignData
+
+def normal_module_from_data(data:DesignData):
+    Rm2 = data.gear_common_data.MEANCONEDIST
+    delta2 = data.gear_common_data.PITCHANGLE
+    betam2 = data.gear_common_data.SPIRALANGLE
+    z2 = data.gear_common_data.NTEETH
+    return 2*Rm2*sin(delta2)*cos(betam2)/z2
+
+def IPOPT_global_options():
+    """
+    default set for the IPOPT options ready to use
+    """
+    options = {
+        'ipopt': {
+            'max_iter': 500,
+            'nlp_scaling_method': 'none',
+            'linear_solver': 'ma57', # 'ma57',
+            'ma57_pre_alloc': 10,
+            'linear_system_scaling': 'none',
+            'tol': 1e-6,
+            'accept_every_trial_step': 'no',
+            # 'mumps_permuting_scaling': 2,
+            # 'mumps_pivot_order': 3,
+            # 'mumps_scaling': 10,
+            'fast_step_computation': 'no',
+            # 'ma97scaling': 0,
+            # 'line_search_method': 'cg-penalty',
+            'print_level': 5,
+            'recalc_y': 'yes',
+            'line_search_method': 'filter',
+            'watchdog_shortened_iter_trigger': 0,
+            'warm_start_init_point': 'yes',
+            'warm_start_mult_bound_push': 1e-6,
+            'warm_start_bound_push' : 1e-6,
+            'warm_start_bound_frac' : 1e-6,
+            'warm_start_slack_bound_frac':  1e-6,
+            'warm_start_slack_bound_push': 1e-6,
+            'warm_start_mult_bound_push' : 1e-6,
+            'least_square_init_duals' : 'yes',
+            'mu_init': 1e-2,
+            # 'mu_oracle': 'probing',
+            'alpha_for_y': 'safer-min-dual-infeas',
+            'mu_strategy': 'adaptive', # 'adaptive'; % 'monotone'; %
+            'adaptive_mu_globalization': 'never-monotone-mode'
+            # 'min_refinement_steps': 20,
+            # 'max_refinement_steps' : 30
+            },
+        'print_time': 1,
+        'error_on_fail': False
+        }
+    return options
 
 def main(): # main function for scripting debug
     # designData = initialize_design_data()

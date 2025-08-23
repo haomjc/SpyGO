@@ -1,4 +1,4 @@
-from hypoid.main.dataclasses import DesignData, FlankNumericalData
+from hypoid.main.data_structs import DesignData, FlankNumericalData
 from general_utils import dataclass_print, dataclass_to_file
 
 import numpy as np

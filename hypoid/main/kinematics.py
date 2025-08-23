@@ -138,12 +138,12 @@ def casadi_machine_kinematics(member, systemHand, casadi_type = 'SX'):
     return ggt, Vgt, Vgt_spatial
 
 def tool_casadi_blade(flank, settings):
-    
+
     # reading parameter settings
     Rp = settings[0]  # point radius
-    rho = settings[1]  # spherical radius
-    rhof = settings[2]  # fillet radius
-    alphap = settings[5] * np.pi / 180  # blade angle
+    rhof = settings[1]  # edge radius
+    rho = settings[2]  # spherical radius
+    alphap = settings[3] * np.pi / 180  # blade angle
 
     # Pre-computing of geometric intermediate parameters
     if flank.lower() == 'concave':
@@ -269,16 +269,16 @@ def tool_casadi(flank, settings, topremCheck = True):
 
     # Verifica parametri compatibili con la generazione del profilo
     Rp = settings[0]  # point radius
-    rho = settings[1]  # spherical radius
-    rhof = settings[2]  # fillet radius
-    rhotop = settings[3]  # toprem radius
-    rhoflank = settings[4]  # flankrem radius
-    alphap = settings[5] * np.pi / 180  # blade angle
-    stfflank = settings[6]  # flankrem depth
-    stftop = settings[7]  # toprem depth
-    alphaTop = settings[8] * np.pi / 180  # toprem angle
+    rhof = settings[1]  # edge radius
+    rho = settings[2]  # spherical radius radius
+    alphap = settings[3] * np.pi  /180 # blade angle
+    stftop = settings[4]  # toprem depth
+    rhotop = settings[5]  # toprem radius
+    alphaTop = settings[6] * np.pi / 180  # toprem angle
+    stfflank = settings[7]  # flankrem depth
+    rhoflank = settings[8]  # flankrem radius angle
     alphaFlank = settings[9] * np.pi / 180  # flankrem angle
-    
+    #(POINTRADIUS, RHO, EDGERADIUS, topremRADIUS, flankremRADIUS, BLADEANGLE, flankremDEPTH, topremDEPTH, topremANGLE, flankremANGLE)
     if topremCheck == False or topremCheck == None:
         Czblade = rho * np.sin(alphap)
         theta_iniz_blade = np.arcsin((Czblade + rhof) / (rho + rhof))
@@ -476,7 +476,7 @@ def casadi_tool_fun(flank, toprem = None, flankrem = None, casadi_type = 'SX'):
 
 def parametric_tool_casadi(flank, Rp, RHO, alpha, edgeRadius, csi, theta):
     [pTool, nTool, L] = casadi_tool_fun(flank, toprem = None, flankrem = None)
-    toolvec = np.array([Rp, RHO, edgeRadius, 9000, 9000, alpha, 100, 0, 0, 0])
+    toolvec = np.array([Rp, edgeRadius, RHO, alpha, 0, 9000, 0, 100, 9000, 0])
     point = pTool(toolvec, np.array([csi,theta]))
     normal = nTool(toolvec, np.array([csi, theta]))
     return point, normal
@@ -512,8 +512,8 @@ def gear_to_pinion_kinematics(offset, SIGMA, hand, EPGalpha):
     Tfp0 = sc.TtZ(P)
     Tfg0 = sc.TtY((offset+E)*s)@sc.TrotY(SIGMA+alpha)@sc.TtZ(G)@sc.TrotZ(np.pi)
 
-    Tfp = lambda phiP: sc.FWkin_globalPOE(Tfp0, -twistP.reshape(-1,1), np.array([phiP]), np.array([0]))
-    Tfg = lambda phiG: sc.FWkin_globalPOE(Tfg0, np.concatenate((np.array([0,0,0]), wP)).reshape(-1,1), np.array([phiG]), np.array([0]))
+    Tfp = lambda phiP: sc.FWkin_globalPOE(Tfp0, -twistP.reshape(-1,1, order = 'F'), np.array([phiP]), np.array([0]))
+    Tfg = lambda phiG: sc.FWkin_globalPOE(Tfg0, np.concatenate((np.array([0,0,0]), wP)).reshape(-1,1, order = 'F'), np.array([phiG]), np.array([0]))
     return Tpg, Vpg_g, Tfp, Tfg, Vpg_p
 
 def main():

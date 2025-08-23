@@ -3,20 +3,21 @@ import numpy as np
 import casadi as ca # for symbolic computations
 import screwCalculus as sc # screwCalculus is a custom module for screw theory computations 
 
-from general_utils import * 
+# from general_utils import * 
 from typing import Literal # for type hinting
 import easy_plot as ep 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
 import copy
+import json
 
 from hypoid.main.utils import *
 from hypoid.main.geometry import *
 from hypoid.main.identification import *
 
 # Import Dataclasses to easily store data into atribute fields with IDE aout completion
-from hypoid.main.dataclasses import DesignData, FlankNumericalData, MemberData, identificationProblemData
+from hypoid.main.data_structs import DesignData, FlankNumericalData, MemberData, identificationProblemData
 
 plt.rcParams.update({  # 'text.usetex': True,  # Enable LaTeX
     'axes.labelsize': 20,  # Font size for x and y labels
@@ -65,8 +66,8 @@ class Hypoid:
         self.zRfillet = FlankNumericalData()                   # flank-fillet transition line in axial plane
         self.zRfullvec = FlankNumericalData()                  # z - R coordinates in array form derived from sampling points (nProf + nFillet)xnFace
         self.zRbounds = FlankNumericalData()                   # bounds on flank fillet transition
-        self.zRwithRoot = MemberData()                                  # bounds with the fillet
-        self.zRrootTriplets = FlankNumericalData()              # triplets for the rootcone sampling
+        self.zRwithRoot = MemberData()                         # bounds with the fillet
+        self.zRrootTriplets = FlankNumericalData()             # triplets for the rootcone sampling
         self.zRfullBounds = FlankNumericalData()
         self.zRPCA = FlankNumericalData()
         self.zRinOther = FlankNumericalData()
@@ -91,7 +92,7 @@ class Hypoid:
         self.identificationProblemConjugate = identificationProblemData()      # conjugate pinion identification problem struct
         self.identificationProblemEaseOff = identificationProblemData()        # easeOff identification problem struct
         self.identificationProblemOptimization = identificationProblemData()   # embedded identification problem for the automatic optimization
-        self.identificationProblemSpreadBlade = identificationProblemData()    # spread blade identification
+        self.identificationProblemCompleting = identificationProblemData()    # spread blade identification
         self.identificationProblemTopography = identificationProblemData()     # generic topography identification
 
         # data for Calyx interface
@@ -105,7 +106,7 @@ class Hypoid:
 
     ### CONSTRUCTORS
 
-    def from_macro_geometry(self, system_data, tooth_data, cone_data):
+    def from_macro_geometry(self, system_data, tooth_data, cone_data, initial_gear_tool_radius = 1000, initial_pinion_tool_radius = 1000):
         method = 1
         if system_data["hypoidOffset"] == 0:
             method = 0
@@ -118,8 +119,8 @@ class Hypoid:
                                         Method = method)
         
         shaft_segment_computation(self.designData)
-        approxToolIdentification_casadi(self.designData, 'pinion', 1000)
-        approxToolIdentification_casadi(self.designData, 'gear', 1000)
+        # approxToolIdentification_casadi(self.designData, 'pinion', initial_pinion_tool_radius )
+        # approxToolIdentification_casadi(self.designData, 'gear', initial_gear_tool_radius)
         
         self.designData.gear_common_data.USE_SPRD_BLD_THICKNESS = True
         self.designData.pinion_common_data.USE_SPRD_BLD_THICKNESS = True
@@ -140,78 +141,21 @@ class Hypoid:
         Load Hypoid data from a file.
         """
         # Implement file loading logic here
-        # self.designData = load_from_file(file_path))
+
+        # json file loading
+        with open(file_path, "r") as f:
+            data_dict = json.load(f)
+
+        self.designData = from_dict_recursive(DesignData, data_dict)
+
+        """
+        NOTE: we will also need to implement T3D/HFM report.txt read
+        """
+
         self.compute_parameters(self.designData)
         return self
     
-    ## end of class constructor
-    
-    @staticmethod
-    def conesIntersection(cone1, cone2):
-        Ar = cone1[0]
-        Az = cone1[1]
-        B = cone1[2]
-
-        Ar2 = cone2[0]
-        Az2 = cone2[1]
-        B2 = cone2[2]
-
-        R = (Az2/Az*B - B2)/(Ar2 - Az2/Az*Ar)
-        z = -(B+Ar*R)/Az
-
-        zR = [z, R]
-        return zR
-    
-    @staticmethod
-    def EPGalphaToFrames(EPGalpha, data):
-        """
-        EPGalpha misalignments converted to frame displacements and z axis orientation
-        """
-        handPin = data['SystemData']['HAND']
-        shaft_angle = data['SystemData']['shaft_angle']
-        signOffset = -(int(handPin.lower() == 'right') - int(handPin.lower() == 'left'))
-        offset = data['SystemData']['hypoidOffset']
-        pin_dict = {}
-        gear_dict = {}
-        pin_dict['originXYZ'] = [EPGalpha[1], signOffset*(offset + EPGalpha[0]), 0]
-        pin_dict['Zdir'] = [sin(shaft_angle*pi/180 + EPGalpha[3]), 0, cos(shaft_angle*pi/180 + EPGalpha[3])]
-        gear_dict['originXYZ'] = [0, 0, EPGalpha[2]]
-        gear_dict['Zdir'] = [0, 0, 1]
-        return pin_dict, gear_dict
-    
-    @staticmethod
-    def sideFromMemberAndFlank(member, flank):
-        side = 'coast'
-        if (member.lower() == 'pinion' and flank.lower() == 'concave') or (member.lower() == 'gear' and flank.lower() == 'convex'):
-            side = 'drive'
-        return side
-    
-    @staticmethod
-    def flankFromMemberAndSide(member, side):
-        flank = 'convex'
-        if (side.lower() == 'drive' and member.lower() == 'pinion') or (side.lower() == 'coast' and member.lower() == 'gear'):
-            flank = 'concave'
-        return flank
-    
-    @staticmethod
-    def getIndexArray():
-        """
-        sequential order of the machine-tool settings
-        """
-        indexes = [
-                1, 10, 19, 28, 37, 46, 55, 64, # Radial motion row coefficients
-                2, 11, 20, 29, 38, 47, 56, 65, # Tilt motion 
-                3, 12, 21, 30, 39, 48, 57, 66, # Swivel motion
-                4, 13, 22, 31, 40, 49, 58, 67, # vertical motion
-                5, 14, 23, 32, 41, 50, 59, 68, # helical motion
-                6, 15, 24, 33, 42, 51, 60, 69, # cradle motion
-                16, 25, 34, 43, 52, 61, 70,    # roll motion
-                8, 17, 26, 35, 44, 53, 62, 71, # machine center to back (axial motion)
-                9, 18, 27, 36, 45, 54, 63,     # root angle motion
-                72, 73, 74, 75, 76, 77, 78, 79, 80, 81, # concave tool
-                82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92 # convex tool
-                ]
-        return indexes
+    ## end of class CONSTRUCTORS
     
     # sampling functions
 
@@ -226,7 +170,7 @@ class Hypoid:
             interpolant_function = self.interpTriplets.get_value(member, flank)
             triplets = interpolated_triplets_zR(interpolant_function, z, R)
             triplets[0, :] = np.maximum(triplets[0, :]-0.2, 0.03)
-            shp = z.shape
+            shp = np.atleast_2d(z).shape
             triplets = triplets.reshape(3, shp[0], shp[1], order = 'F')
         
         if data_type.lower() == 'base':
@@ -337,7 +281,7 @@ class Hypoid:
 
         return p, n, base_triplets, zRconj, psi_P, angular_ease_off, v_pg_p, omega, psi_G
     
-# parameters update functions
+    # parameters update functions
 
     def compute_parameters(self, new_data, FW_vec = None, no_sync = False, triplets = None):
         self.designData = new_data
@@ -378,6 +322,7 @@ class Hypoid:
             ]
 
         # Sampling surfaces and interpolating
+
         waitbar = Waitbar(step = 0, title="Initializating Hypoid", text="Generating pinion concave flank")
         pin_pts_cnv, pin_proot_cnv, pin_nroot_cnv, _, _ = self.sample_surface('pinion', 'concave',
                                                                          triplet_guess = trip_pin_cnv,
@@ -416,11 +361,11 @@ class Hypoid:
         setattr(self, 'rootSpacing', {'pinion': (pin_proot_cnv + pin_proot_cvx) * 0.5, 'gear': (gear_proot_cnv + gear_proot_cvx) * 0.5})
 
         nF, nP, nfil = self.nFace, self.nProf, self.nFillet
-        pin_pts_cnv = pin_pts_cnv.reshape(3, nF, nP + nfil - 1)[:, :, -1]
-        pin_pts_cvx = pin_pts_cvx.reshape(3, nF, nP + nfil - 1)[:, :, -1]
+        pin_pts_cnv = pin_pts_cnv.reshape(3, nF, nP + nfil - 1, order = 'F')[:, :, -1]
+        pin_pts_cvx = pin_pts_cvx.reshape(3, nF, nP + nfil - 1, order = 'F')[:, :, -1]
 
-        gear_pts_cnv = gear_pts_cnv.reshape(3, nF, nP + nfil - 1)[:, :, -1]
-        gear_pts_cvx = gear_pts_cvx.reshape(3, nF, nP + nfil - 1)[:, :, -1]
+        gear_pts_cnv = gear_pts_cnv.reshape(3, nF, nP + nfil - 1, order = 'F')[:, :, -1]
+        gear_pts_cvx = gear_pts_cvx.reshape(3, nF, nP + nfil - 1, order = 'F')[:, :, -1]
 
         setattr(self, 'toplandSpacing', {'pinion': (pin_pts_cnv + pin_pts_cvx) * 0.5, 'gear': (gear_pts_cnv + gear_pts_cvx) * 0.5})
 
@@ -439,7 +384,7 @@ class Hypoid:
         self.identificationProblemConjugate.designData = copy.deepcopy(self.designData)
         self.identificationProblemEaseOff.designData = copy.deepcopy(self.designData)
         self.identificationProblemOptimization.designData = copy.deepcopy(self.designData)
-        self.identificationProblemSpreadBlade.designData = copy.deepcopy(self.designData)
+        self.identificationProblemCompleting.designData = copy.deepcopy(self.designData)
         self.identificationProblemTopography.designData = copy.deepcopy(self.designData)
 
         if no_sync:
@@ -458,14 +403,14 @@ class Hypoid:
         waitbar.close(delay=1)
         return
     
-# zR functions 
+    # zR functions 
 
     def compute_zr_grid(self, member, flank, n_prof, n_face, active_flank = True, extend_tip = False):  
         zR_bounds = self.zRbounds.get_value(member, flank)
 
         if active_flank == False:
-            zR_fillet = self.zRwithRoot[member]
-            zR_fillet = np.r_[zR_fillet[0:1,:], zR_bounds[[1,0],:]]
+            zR_fillet = getattr(self.zRwithRoot, member)
+            zR_bounds = np.r_[zR_fillet[0:2,:], zR_bounds[2:4,:]]
 
         if extend_tip:
             extend_coeff = 0.35
@@ -553,7 +498,7 @@ class Hypoid:
         # build the casadi functions for the surface points and normals
         return
 
-# identification functions
+    # identification functions
 
     def backup_rootline(self):
         """Save the current rootline as original if not already saved."""
@@ -563,17 +508,21 @@ class Hypoid:
     
     def buildIdentificationProblem(self, member, flank, x_index, lb, ub, zR, problem_type = 'conjugate', bound_points_tol = None, scaling_bounds = None):
         
+        if zR is None:
+            z, R = self.compute_zr_grid(member, flank, 11, 22, active_flank=True)
+            zR = np.array([z.flatten(order = 'F'), R.flatten(order = 'F')])
+
         if zR.shape[0] == 2:
             zR = zR.T
 
-        if flank.lower() == 'drive' and member.lower() == 'pinion': # side instead of flank provided
+        if (flank.lower() == 'drive' and member.lower() == 'pinion') or (flank.lower() == 'coast' and member.lower() == 'gear'): # side instead of flank provided
             flank = 'concave'
-        else:
+        elif (flank.lower() == 'coast' and member.lower() == 'pinion') or (flank.lower() == 'drive' and member.lower() == 'gear'):
             flank = 'convex'
         
-        self.backup_rootline() # save the original rootline data before any modifications
+        self.backup_rootline() # save the original rootline data before any modifications, if not already saved
 
-        if problem_type.lower() == 'conjugate':
+        if problem_type.lower() in ['conjugate', 'conj']:
             # add rootline data also to the identification problem data
             field_data = self.identificationProblemConjugate
 
@@ -581,46 +530,75 @@ class Hypoid:
                 bound_points_tol = 10 # mm tolerance for the bounding box for identified points w.r.t base ones
 
             identification_data = {'root_constraint': self.originalRootLine.get_value(member, flank), 'triplets': self.conjugateData.get_value(member, flank)['triplets']}
-            field_data.set_value(member, flank, identification_data)
 
-        elif problem_type.lower() == 'easeoff' or problem_type.lower() == 'optimization':
+        elif problem_type.lower() in ['ease-off', 'optimization', 'easeoff', 'opti']:
 
             field_data = self.identificationProblemEaseOff
-            if problem_type.lower() == 'optimization':
+            if problem_type.lower() in ['opti', 'optimization']:
                 field_data = self.identificationProblemOptimization
 
             if bound_points_tol is None:
-                bound_points_tol = 0.4
+                bound_points_tol = 1
 
             z = zR[:,0]
             R = zR[:,1]
-            base_points, base_normals, base_triplets = self.samplezR(z, R, member, flank, x_index)
-            root_data = self.originalRootLine.get_value(member, flank)
-            root_points = root_data['points']
-            root_normals = root_data['normals']
-            root_triplets = root_data['triplets']
+            base_points, base_normals, base_triplets = self.samplezR(z, R, member, flank)
 
-            field_data.set_value(member, flank, {'base_points': base_points, 'base_normals': base_normals, 'base_triplets': base_triplets,
-                                         'root_points': root_points, 'root_normals': root_normals, 'root_triplets': root_triplets})
+            identification_data = {'base_points': base_points, 'base_normals': base_normals, 'triplets': base_triplets,
+                                         'root_constraint': self.originalRootLine.get_value(member, flank)}
             
+        
         lb_scaling = lb
         ub_scaling = ub
         if scaling_bounds is not None:
             lb_scaling = scaling_bounds[0]
             ub_scaling = scaling_bounds[1]
 
-        solver, settings = machine_identification_problem(triplets, x_index, lb, ub, lb_scaling, ub_scaling, 
-                                                          self.designData, member, flank, root_constraint = root_constraint,
+        solver, settings = machine_identification_problem(identification_data['triplets'], x_index, lb, ub, lb_scaling, ub_scaling, 
+                                                          self.designData, member, flank, root_constraint = identification_data['root_constraint'],
                                                           bound_points_tol = bound_points_tol
                                                           )
         
-                                                          
-        
+        identification_data['solver'] = solver
+        identification_data['settings'] = settings
+        field_data.set_value(member, flank, identification_data)
 
-        return
+        # rewrite the currently selected machine tool settings data. Avoids storing old identification data when using different set of settings within the same instance
+        field_data.designData.copy_machine_tool_settings(member, flank, self.designData)
 
-    def buildIdentificationProblemSB(self, member, flank, x_index, lb, ub): # Spread Blade variant
+        return solver, settings
+
+    def buildIdentificationProblemCompleting(self, member, x_index, lb, ub, zR, bound_points_tol = None, scaling_bounds = None): # Spread Blade variant
         
+        if zR is None:
+            z, R = self.compute_zr_grid(member, "concave", 11, 22, active_flank=True)
+            zR_cnv = np.array([z.flatten(order = 'F'), R.flatten(order = 'F')])
+            z, R = self.compute_zr_grid(member, "convex", 11, 22, active_flank=True)
+            zR_cvx = np.array([z.flatten(order = 'F'), R.flatten(order = 'F')])
+
+        field_data = self.identificationProblemCompleting
+        if bound_points_tol is None:
+            bound_points_tol = 1
+
+        Z_cnv = zR_cnv[:,0]
+        R_cnv = zR_cnv[:,1]
+        Z_cvx = zR_cvx[:,0]
+        R_cvx = zR_cvx[:,1]
+        base_points_cnv, base_normals_cnv, base_triplets_cnv = self.samplezR(Z_cnv, R_cnv, member, "concave")
+        base_points_cvx, base_normals_cvx, base_triplets_cvx = self.samplezR(Z_cvx, R_cvx, member, "convex")
+
+        lb_scaling = lb
+        ub_scaling = ub
+        if scaling_bounds is not None:
+            lb_scaling = scaling_bounds[0]
+            ub_scaling = scaling_bounds[1]
+        identification_data = {'base_points': [base_points_cnv, base_points_cvx], 'base_normals': [base_normals_cnv, base_normals_cvx], 'triplets': [base_triplets_cnv, base_triplets_cvx],
+                                        'root_constraint': self.originalRootLine.get_value(member, "concave")}
+        
+        solver, settings = machine_identification_problem(identification_data['triplets'], x_index, lb, ub, lb_scaling, ub_scaling, 
+                                                self.designData, member, root_constraint = identification_data['root_constraint'],
+                                                bound_points_tol = bound_points_tol
+                                                )
         return
     
     # getters
@@ -649,16 +627,40 @@ class Hypoid:
         
         return indexes 
     
-    def get_machine_settings_names(self):
+    def get_machine_settings_names(self, completing = False):
 
         """
         Returns the names of the machine settings as a list.
         """
-        return machine_settings_index()
+        return machine_settings_index(completing=completing)
+    
+    def getIndexArray():
+        """
+        sequential order of the machine-tool settings
+        """
+        indexes = [
+            0, 9, 18, 27, 36, 45, 54, 63,   # Radial motion row coefficients
+            1, 10, 19, 28, 37, 46, 55, 64,  # Tilt motion 
+            2, 11, 20, 29, 38, 47, 56, 65,  # Swivel motion
+            3, 12, 21, 30, 39, 48, 57, 66,  # Vertical motion
+            4, 13, 22, 31, 40, 49, 58, 67,  # Helical motion
+            5, 14, 23, 32, 41, 50, 59, 68,  # Cradle motion
+            6, 15, 24, 33, 42, 51, 60, 69,  # Roll motion (note index 6 corresponds to the indexing rotation, which should not be used in identification)
+            7, 16, 25, 34, 43, 52, 61, 70,  # Machine center to back (axial motion)
+            8, 17, 26, 35, 44, 53, 62, 71,  # Root angle motion
+            72, 73, 74, 75, 76, 77, 78, 79, 80, 81, # Concave tool
+            82, 83, 84, 85, 86, 87, 88, 89, 90, 91  # Convex tool
+        ]
+        return indexes
+    
+    def compute_identification_bounds(self, member, flank, x_index):
+
+        return extract_bounds_from_data(self.designData, x_index, member, flank)
+    
     # setters
 
     # plot
-    def plot(self, member = 'pinion', flank = 'concave', whole_gear = False, both_flanks = False):
+    def plot(self, member = 'pinion', flank = 'concave', whole_gear = False):
         
         HAND = self.designData.system_data.hand.lower()
         s = -1
@@ -714,7 +716,7 @@ class Hypoid:
                 
                 # Create a surface plot
                 Rot = sc.rotZ(2*np.pi/nz*i*s)
-                Xnew = np.hstack([ X*Rot[0,0] + Y*Rot[0,1] + Z*Rot[0,2], Xnew,])
+                Xnew = np.hstack([ X*Rot[0,0] + Y*Rot[0,1] + Z*Rot[0,2], Xnew])
                 Ynew = np.hstack([ X*Rot[1,0] + Y*Rot[1,1] + Z*Rot[1,2], Ynew])
                 Znew = np.hstack([ X*Rot[2,0] + Y*Rot[2,1] + Z*Rot[2,2], Znew])
                 
@@ -780,6 +782,74 @@ class Hypoid:
 
         return description.strip()  # Remove trailing newline for cleaner output
     
+    # save function
+    def save_design_data_json(self, filename,  design_data_type = 'base', indent = 4):
+
+        if design_data_type.lower() in ['base', 'basic']:
+            designData = self.designData
+        elif design_data_type.lower() == 'easeOff':
+            designData = self.identificationProblemEaseOff.designData
+        elif design_data_type.lower() in ['optimization', 'opti', 'optimized']:
+            designData = self.identificationProblemOptimization.designData
+        elif design_data_type.lower() in ['conjugate', 'conj']: 
+            designData = self.identificationProblemConjugate.designData
+        elif design_data_type.lower() in ['completing', 'sb', 'spreadblade', 'spread_blade']: 
+            designData = self.identificationProblemSpreadBlade.designData
+        elif design_data_type.lower() == 'topography': 
+            designData = self.identificationProblemTopography.designData
+
+        designData.to_json(filename, indent = 4)
+        return
+    
+    # static methods
+    @staticmethod
+    def conesIntersection(cone1, cone2):
+        Ar = cone1[0]
+        Az = cone1[1]
+        B = cone1[2]
+
+        Ar2 = cone2[0]
+        Az2 = cone2[1]
+        B2 = cone2[2]
+
+        R = (Az2/Az*B - B2)/(Ar2 - Az2/Az*Ar)
+        z = -(B+Ar*R)/Az
+
+        zR = [z, R]
+        return zR
+    
+    @staticmethod
+    def EPGalphaToFrames(EPGalpha, data):
+        """
+        EPGalpha misalignments converted to frame displacements and z axis orientation
+        """
+        handPin = data['SystemData']['HAND']
+        shaft_angle = data['SystemData']['shaft_angle']
+        signOffset = -(int(handPin.lower() == 'right') - int(handPin.lower() == 'left'))
+        offset = data['SystemData']['hypoidOffset']
+        pin_dict = {}
+        gear_dict = {}
+        pin_dict['originXYZ'] = [EPGalpha[1], signOffset*(offset + EPGalpha[0]), 0]
+        pin_dict['Zdir'] = [sin(shaft_angle*pi/180 + EPGalpha[3]), 0, cos(shaft_angle*pi/180 + EPGalpha[3])]
+        gear_dict['originXYZ'] = [0, 0, EPGalpha[2]]
+        gear_dict['Zdir'] = [0, 0, 1]
+        return pin_dict, gear_dict
+    
+    @staticmethod
+    def sideFromMemberAndFlank(member, flank):
+        side = 'coast'
+        if (member.lower() == 'pinion' and flank.lower() == 'concave') or (member.lower() == 'gear' and flank.lower() == 'convex'):
+            side = 'drive'
+        return side
+    
+    @staticmethod
+    def flankFromMemberAndSide(member, side):
+        flank = 'convex'
+        if (side.lower() == 'drive' and member.lower() == 'pinion') or (side.lower() == 'coast' and member.lower() == 'gear'):
+            flank = 'concave'
+        return flank
+
+
 # debugging
 
 def main():
