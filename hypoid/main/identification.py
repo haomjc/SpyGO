@@ -20,8 +20,8 @@ def split_machine_tool_index(x_index):
     parameters_tool = np.setdiff1d(np.arange(0, 10), index_tool)
     return index_machine, index_tool, parameters_machine, parameters_tool
 
-def extract_bounds_from_data(designData:DesignData, x_index, member, flank):
-    mach_UB, mach_LB, cut_UB, cut_LB = identification_bounds(designData, member, flank)
+def extract_bounds_from_data(design_data:DesignData, x_index, member, flank):
+    mach_UB, mach_LB, cut_UB, cut_LB = identification_bounds(design_data, member, flank)
     lb = data_from_settings_index(mach_LB, cut_LB, x_index)
     ub = data_from_settings_index(mach_UB, cut_UB, x_index)
     return lb, ub
@@ -601,7 +601,7 @@ def evaluate_identification_problem(solver:ca.nlpsol, settings, target_points:np
         target_points = target_points[0:3, :]
 
     # extract solver settings and parameters
-    x0 = settings['x0']
+    x0  = settings['x0']
     lbx = settings['lbx']
     ubx = settings['ubx']
     lbN = settings['lb_scaling'].squeeze()
@@ -611,7 +611,7 @@ def evaluate_identification_problem(solver:ca.nlpsol, settings, target_points:np
 
     ng_root = settings['ng_root']
     num_points_root = settings['num_points_root']
-    num_points = target_points.shape[1]
+    num_points_given = target_points.shape[1]
     num_points_flank = settings['num_points_flank']
     num_index = max(settings['x_index'].shape)
     nx = settings['nx']
@@ -641,9 +641,6 @@ def evaluate_identification_problem(solver:ca.nlpsol, settings, target_points:np
     lbg[-2 : -( (num_points_root-1)*ng_root + 3 ) : -ng_root] = -circ_tol
     ubg[-2 : -( (num_points_root-1)*ng_root + 3 ) : -ng_root] = circ_tol
 
-
-    
-    # update problem parameters
     p = np.concatenate((settings['p'].full().squeeze(), target_points.flatten(order = 'F')), 0)
 
     if warm_x0 is not None:
@@ -667,20 +664,21 @@ def evaluate_identification_problem(solver:ca.nlpsol, settings, target_points:np
     residuals = states[3,:]
     points = states[4:7,:]
     normals = states[7:10,:]
-    Z = points[2,:].reshape(11,22,order = 'F')
-    R = np.sqrt(points[0,:]**2 + points[1,:]**2).reshape(11,22,order = 'F')
-    res = residuals.reshape(11,22,order = 'F')
-    U, V = np.meshgrid(np.linspace(-1, 1, 22), np.linspace(-1, 1, 11))
-    plot_ease_off(res*1000, Z, R, aspect_ratio=[1,1,np.max(np.abs(res))*1000/5], labels=['z (mm)', 'R (mm)', 'E ($\mu$ m)'])
-    print(np.abs(res).max())
+    # points = points[:, :-num_points_root]
+    # Z = points[2,:].reshape(11,22,order = 'F')
+    # R = np.sqrt(points[0,:]**2 + points[1,:]**2).reshape(11,22,order = 'F')
+    # res = residuals.reshape(11,22,order = 'F')
+    # U, V = np.meshgrid(np.linspace(-1, 1, 22), np.linspace(-1, 1, 11))
+    # plot_ease_off(res*1000, Z, R, aspect_ratio=[1,1,np.max(np.abs(res))*1000/5], labels=['z (mm)', 'R (mm)', 'E ($\mu$ m)'])
+    # print(np.abs(res).max())
 
-    import matplotlib.pyplot as plt
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(points[0,:], points[1,:], points[2,:])
-    ax.set_aspect('equal', adjustable='box', anchor='C')
-    plt.show()
-    return new_settings
+    # import matplotlib.pyplot as plt
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(points[0,:], points[1,:], points[2,:])
+    # ax.set_aspect('equal', adjustable='box', anchor='C')
+    # plt.show()
+    return new_settings, residuals
  
 def reorder_identification_variables(x, csi_var, theta_var, phi_var, h_var,
                                          p_g_var, n_g_var, V_g_var, sparsity_flag):

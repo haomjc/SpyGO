@@ -103,8 +103,10 @@ class Hypoid:
         # if toothData is not None:
         #     input = 'coneData'
         # self.constructHypoid(designData = designData, toothData = toothData, coneData = coneData, inputData = input)
-
-    ### CONSTRUCTORS
+    
+    ###################################################
+    # CONSTRUCTORS
+    ###################################################
 
     def from_macro_geometry(self, system_data, tooth_data, cone_data, initial_gear_tool_radius = 1000, initial_pinion_tool_radius = 1000):
         method = 1
@@ -157,7 +159,9 @@ class Hypoid:
     
     ## end of class CONSTRUCTORS
     
-    # sampling functions
+    ###################################################
+    # SAMPLING FUNCITONS
+    ###################################################
 
     def samplezR(self, z, R, member, flank, triplets = None, data_type = 'base', SBmachining = False):
         
@@ -256,7 +260,7 @@ class Hypoid:
 
         return 
 
-    def compute_conjugate_points_to_gear(self, flank, zR, EPGalpha, offset_psi, designData: DesignData = None, rephase_points = False):
+    def compute_conjugate_points_to_gear(self, flank, zR, EPGalpha, offset_psi = 0, designData: DesignData = None, rephase_points = False):
         
         if flank.lower() == 'convex':
             pinion_flank = 'concave'
@@ -269,19 +273,22 @@ class Hypoid:
 
         triplets = interpolated_triplets_zR(self.interpTriplets.get_value('gear', flank), zR[:, 0], zR[:, 1])
 
-        p, n, zRconj, base_triplets, psi_P, psi_G, angular_ease_off, v_pg_p, omega = \
-            pinion_conjugate_to_gear(designData, pinion_flank, zR, EPGalpha, triplets, self.interpTriplets.get_value('pinion', pinion_flank), 0)
+        p, n, zRconj, base_triplets, psi_P, psi_G, angular_ease_off, v_pg_p, omega, offset_psi = \
+            pinion_conjugate_to_gear(designData, pinion_flank, zR, EPGalpha, triplets, self.interpTriplets.get_value('pinion', pinion_flank), offset_psi, rephase_points = rephase_points)
         self.pinPsiRange = psi_P
         self.gearPsiRange = psi_G
-        setattr(self, 'PsiPoffset', offset_psi)
+        if flank.lower() == "concave":
+            setattr(self, 'PsiPoffset', offset_psi)
 
         # store the conjugate data
         conj_data = {'points': p, 'normals': n, 'triplets': base_triplets}
-        self.conjugateData.set_value('pinion', flank, conj_data)
+        self.conjugateData.set_value('pinion', pinion_flank, conj_data)
 
-        return p, n, base_triplets, zRconj, psi_P, angular_ease_off, v_pg_p, omega, psi_G
+        return p, n, base_triplets, zRconj, psi_P, angular_ease_off, v_pg_p, omega, psi_G, offset_psi
     
-    # parameters update functions
+    ###################################################
+    # PARAMETERS UPDATE
+    ###################################################
 
     def compute_parameters(self, new_data, FW_vec = None, no_sync = False, triplets = None):
         self.designData = new_data
@@ -403,7 +410,9 @@ class Hypoid:
         waitbar.close(delay=1)
         return
     
-    # zR functions 
+    ###################################################
+    # z-R FUNCITONS
+    ###################################################
 
     def compute_zr_grid(self, member, flank, n_prof, n_face, active_flank = True, extend_tip = False):  
         zR_bounds = self.zRbounds.get_value(member, flank)
@@ -498,7 +507,9 @@ class Hypoid:
         # build the casadi functions for the surface points and normals
         return
 
+    ###################################################
     # identification functions
+    ###################################################
 
     def backup_rootline(self):
         """Save the current rootline as original if not already saved."""
@@ -529,7 +540,8 @@ class Hypoid:
             if bound_points_tol is None:
                 bound_points_tol = 10 # mm tolerance for the bounding box for identified points w.r.t base ones
 
-            identification_data = {'root_constraint': self.originalRootLine.get_value(member, flank), 'triplets': self.conjugateData.get_value(member, flank)['triplets']}
+            identification_data = {'root_constraint': self.originalRootLine.get_value(member, flank),
+                                   'triplets': self.conjugateData.get_value(member, flank)['triplets']}
 
         elif problem_type.lower() in ['ease-off', 'optimization', 'easeoff', 'opti']:
 
@@ -547,7 +559,6 @@ class Hypoid:
             identification_data = {'base_points': base_points, 'base_normals': base_normals, 'triplets': base_triplets,
                                          'root_constraint': self.originalRootLine.get_value(member, flank)}
             
-        
         lb_scaling = lb
         ub_scaling = ub
         if scaling_bounds is not None:
@@ -601,7 +612,74 @@ class Hypoid:
                                                 )
         return
     
+    def identifyConjugatePinion(self,
+                                x_index = "default", lb = "default", ub = "default",
+                                zR = None, EPGalpha = [[0,0,0,0], [0,0,0,0]],
+                                completing = False,
+                                update_settings = False, plot_points = True,
+                                debug_plots = True):
+        
+        """
+        For now we take the route of doing concave + convex automatically with the same set of mach-tool settings.
+        If things wont work we would fall back to single flank identification at a time.
+
+        Here we take care automatically for flank rephasing to achieve reasonable backlash (no outer normal but meantransverse backlash)
+        """
+        
+        if isinstance(x_index, str) and x_index.lower() == 'default':
+            x_index = [0,3,4,5,7,15, # config. machine + ratio of roll
+                       72,74,75]             # basic tool (no toprem, flankrem, no edgeradius)
+            x_index.sort()
+        
+        offset_psi = 0
+        conjugate_points = []
+        rephase = True
+        for gear_flank, pinion_flank in [("convex", "concave"), ("concave", "convex")]:
+            if (isinstance(lb, str) and lb.lower() == 'default') or lb is None:
+                lb, ub = self.compute_identification_bounds("pinion", pinion_flank, x_index)
+            z_g, R_g = self.compute_zr_grid("gear", gear_flank, self.nProf, self.nFace)
+
+            # sample gear conjugate points
+            # NOTE: if stuff does not converge make the following checks (in order):
+            # 1) tool functions are correctly sampling. Toprem radius or flankrem depth may cause singularities (function: kinematics.py -> casadi_tool)
+            # 2) conjugate points algorithm converges properly. (function: geometry.py ->  pinion_conjugate_to_gear)
+            
+            if pinion_flank.lower() == "convex":
+                # correcting the offset angle considering the gear tooth layout
+                nT = self.get_Nteeth("pinion")
+                s = -1
+                if self.get_systemHand().lower() == 'left':
+                    s = +1
+                offset_psi -= s*2*np.pi/nT
+            
+            p_conj, n_conj, base_triplets, zRconj, psi_P, angular_ease_off, v_pg_p, omega, psi_G, offset_psi = \
+                self.compute_conjugate_points_to_gear(gear_flank, np.vstack((z_g.T.flatten(order = 'F'), R_g.T.flatten(order = 'F'))).T, EPGalpha[0], rephase_points=rephase, offset_psi=offset_psi)
+            rephase = False
+            
+            conjugate_points.append(p_conj)
+            # build, evaluate and store designData
+            solver, settings = self.buildIdentificationProblem("pinion", pinion_flank, x_index, lb, ub, zR, problem_type = 'conjugate')
+
+            # the conjugate points are computed only on the active flank. We need to add also the rooline points
+            root_points = self.identificationProblemConjugate.get_value("pinion", pinion_flank)["root_constraint"]["points"]
+            target_points = np.concatenate((p_conj[0:3,:], root_points), axis = 1)
+
+            new_settings, residuals = evaluate_identification_problem(solver, settings, target_points)
+            self.identificationProblemConjugate.designData.update_settings("pinion", pinion_flank, x_index, new_settings)
+
+        if debug_plots:
+            F = self.plot("pinion", "both")
+            scatter_cnv = ep.scatter(F, conjugate_points[0][0,:], conjugate_points[0][1,:], conjugate_points[0][2,:])
+            scatter_cvx = ep.scatter(F, conjugate_points[1][0,:], conjugate_points[1][1,:], conjugate_points[1][2,:])
+            F.updateImage()
+            F.show()    
+
+        return
+    
+    ###################################################
     # getters
+    ###################################################
+
     def get_Nteeth(self, member):
         
         if member.lower() == 'gear':
@@ -657,10 +735,15 @@ class Hypoid:
 
         return extract_bounds_from_data(self.designData, x_index, member, flank)
     
+    ###################################################
     # setters
+    ###################################################
 
+    ###################################################
     # plot
-    def plot(self, member = 'pinion', flank = 'concave', whole_gear = False):
+    ###################################################
+
+    def plot(self, member = 'pinion', flank = 'concave', whole_gear = False, parent = None):
         
         HAND = self.designData.system_data.hand.lower()
         s = -1
@@ -724,6 +807,20 @@ class Hypoid:
 
         F.updateImage()
         F.show()
+        return F
+    
+    def plotToolProfile(self, member, flank):
+        tool_settings = self.designData.extract_tool_settings(member, flank)
+
+        p_fun,_,_ = casadi_tool_fun(flank, toprem=True, flankrem=True)
+
+        csi = np.linspace(0, 50, 200)
+        theta = csi*0
+        p_num = p_fun(tool_settings, ca.vertcat(csi.reshape(1, -1, order = 'F'), theta.reshape(1, -1, order = 'F'))).full()
+
+        plt.plot(p_num[0,:], p_num[2,:])
+        plt.axis("equal")
+        plt.show()
         return
     
     def plot_zr_bounds(self, member, flank):
@@ -752,7 +849,10 @@ class Hypoid:
 
         return
 
-    # LOG funcitons
+    ###################################################
+    # LOG FUNCTIONS
+    ###################################################
+
     def print_settings_names(self):
 
         # Get the machine settings names
@@ -782,7 +882,10 @@ class Hypoid:
 
         return description.strip()  # Remove trailing newline for cleaner output
     
-    # save function
+    ###################################################
+    # SAVE FUNCTIONS
+    ###################################################
+
     def save_design_data_json(self, filename,  design_data_type = 'base', indent = 4):
 
         if design_data_type.lower() in ['base', 'basic']:
@@ -801,7 +904,10 @@ class Hypoid:
         designData.to_json(filename, indent = 4)
         return
     
-    # static methods
+    ###################################################
+    # STATIC METHODS
+    ###################################################
+
     @staticmethod
     def conesIntersection(cone1, cone2):
         Ar = cone1[0]
@@ -850,7 +956,9 @@ class Hypoid:
         return flank
 
 
-# debugging
+###################################################
+# DEBUGGING
+###################################################
 
 def main():
     SystemData = {

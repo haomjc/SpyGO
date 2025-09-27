@@ -494,7 +494,7 @@ def rz_sampling_NURBS_casadi(data: DesignData, member, flank, z, R, triplets):
     raise Exception("NURBS sampling not yet implemented")
     return 
 
-def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets_gear, interpolated_triplets_pin, offset_psi):
+def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets_gear, interpolated_triplets_pin, offset_psi, rephase_points = False):
 
     hypoid_offset = data.system_data.hypoid_offset
     HAND = data.system_data.hand
@@ -555,6 +555,13 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
     pg_num = pG_fun(ca.vertcat(triplets_gear[0, :].reshape(1, -1, order = 'F'), triplets_gear[1, :].reshape(1, -1, order = 'F'), triplets_gear[2, :].reshape(1, -1, order = 'F'))).full()
     ng_num = nG_fun(ca.vertcat(triplets_gear[0, :].reshape(1, -1, order = 'F'), triplets_gear[1, :].reshape(1, -1, order = 'F'), triplets_gear[2, :].reshape(1, -1, order = 'F'))).full()
 
+    # pT_num = p_tool(tool_settings, ca.vertcat(triplets_gear[0, :].reshape(1, -1, order = 'F'), triplets_gear[1, :].reshape(1, -1, order = 'F'))).full()
+    # import matplotlib.pyplot as plt
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(pT_num[0, :], pT_num[1, :], pT_num[2, :])
+
+    # plt.show()
 
     equations = ca.vertcat(
         pG_sym[0]**2 + pG_sym[1]**2 - R_sym**2,
@@ -570,8 +577,11 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
     solver = ca.rootfinder('solver', 'newton', problem, {'error_on_fail': False})
     
     phi_P0 = 0
-    triplets_gear[0, :] = triplets_gear[0, :] + 0.2
+    triplets_gear[0, :] = triplets_gear[0, :] + 0.05
     for ii in range(num_points):
+        if ii > 0:
+            psi_G[ii] = psi_G[ii-1]
+
         x0 = np.vstack([triplets_gear[:, ii].reshape(-1, 1, order = 'F'), psi_G[ii].reshape(-1, 1, order = 'F'), pg_num[0:3, ii].reshape(-1, 1, order = 'F'), ng_num[0:3, ii].reshape(-1, 1, order = 'F')])
         p = np.array([R[ii], z[ii]]).reshape(-1, 1, order = 'F')
         sol = solver(x0=x0, p=p)
@@ -620,15 +630,16 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
     if HAND.lower() == 'left':
         s = +1
 
-    id_pt = int(np.floor(num_points/2))
-    offset_psi = s*(np.arctan2(points_base[1, id_pt], points_base[0, id_pt]) - np.arctan2(conjugate_points[1, id_pt], conjugate_points[0, id_pt]))
+    if rephase_points:
+        id_pt = int(np.floor(num_points/2))
+        offset_psi += s*(np.arctan2(points_base[1, id_pt], points_base[0, id_pt]) - np.arctan2(conjugate_points[1, id_pt], conjugate_points[0, id_pt]))
+
     p = sc.TrotZ(offset_psi)@conjugate_points
     n = sc.TrotZ(offset_psi)@conjugate_normals
 
-
     angular_ease_off = s*(np.arctan2(points_base[1, :], points_base[0, :]) - np.arctan2(p[1, :], p[0, :]))
     
-    return p, n, zRpin, triplets_base, psi_P, psi_G, angular_ease_off, v_pg_p, omega
+    return p, n, zRpin, triplets_base, psi_P, psi_G, angular_ease_off, v_pg_p, omega, offset_psi
 
 def shaft_segment_computation(data:DesignData):
     

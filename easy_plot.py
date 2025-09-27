@@ -39,6 +39,7 @@ class Figure:
     def __init__(self, title = 'Title') -> None:
         self.app = pv
         self.figure = pvq.BackgroundPlotter(title = title)
+        # self.figure.enable_point_picking(callback=callback, show_message=True, use_picker=True)
         self.axes = self.figure.show_axes()
         self.grid = self.figure.show_grid()
         self.bounds = self.figure.show_bounds(grid='back', location='outer', ticks='both', all_edges=True)
@@ -214,7 +215,28 @@ class line(go):
         )
         self.figure.addPlotObject(self)
         self.points = self.object.points # transpose to have the same format as the other objects
-            
+
+class scatter(go):
+
+    def __init__(self, fig, x, y, z = None, color = 'black', line_width = 10, parent = None) -> None:
+        super().__init__(fig, parent)
+        self.XData = x
+        self.YData = y
+        if z is None:
+            z = x*0
+        self.ZData = z
+        n_points = len(x)
+        points = np.column_stack([x, y, z])
+        lines = np.column_stack((np.full(n_points-1, 2), np.arange(n_points-1), np.arange(1, n_points))).flatten()
+        self.object = fig.app.PolyData(points)
+        self.object.lines = lines
+        fig.figure.add_points(self.object,
+            color = color,
+            line_width = line_width,
+        )
+        self.figure.addPlotObject(self)
+        self.points = self.object.points # transpose to have the same format as the other objects
+
 class revolute_joint(go):
     """
     revolute joint object.

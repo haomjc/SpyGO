@@ -296,12 +296,12 @@ def scattered_interpolant(points, values):
         x_query = np.atleast_2d(x_query)
         y_query = np.atleast_2d(y_query)
         shp = x_query.shape
-        query_points = np.vstack((x_query.flatten(), y_query.flatten())).T
+        query_points = np.vstack((x_query.flatten(order = 'F'), y_query.flatten(order = 'F'))).T
         return np.where(
         np.isnan(linear_interpolator(query_points)),  # Check if linear interp result is nan
         nearest_interpolator(query_points),           # Use nearest neighbor for extrapolation
         linear_interpolator(query_points)             # Use linear interpolation otherwise
-        ).reshape(shp[0], shp[1])
+        ).reshape(shp[0], shp[1], order = 'F')
     # Return a lambda function that combines both
     return sample_interpolant
 
@@ -382,6 +382,25 @@ def from_dict_recursive(cls, data):
 
     return cls(**kwargs)
 
+def delete_non_matching_files(folder_path, extensions):
+    """
+    Deletes all files in folder_path (and its subfolders) that do NOT have one of the given extensions.
+    
+    Args:
+        folder_path (str): Path to the target folder.
+        extensions (list[str]): List of extensions to keep (e.g., [".csv", ".bcrf"]).
+    """
+    # Normalize extensions (ensure lowercase and leading dot)
+    extensions = [ext.lower() if ext.startswith(".") else "." + ext.lower() for ext in extensions]
+    
+    for root, _, files in os.walk(folder_path):
+        for filename in files:
+            file_path = os.path.join(root, filename)
+
+            if not any(filename.lower().endswith(ext) for ext in extensions):
+                print(f"Deleting: {file_path}")
+                os.remove(file_path)
+
 def main():
     points = np.random.rand(10, 2)  # 10 points in 2D space
     values = np.random.rand(10)     # Corresponding values
@@ -393,6 +412,11 @@ def main():
 
     print(ca.SX(5,5))
 
+def main_delete_files():
+    path = r"D:\disk_data\Rtec\REOBTAIN"
+    extensions = [".csv", ".bcrf", ".lrx"] 
+    delete_non_matching_files(path, extensions)
+
 if __name__ == "__main__":
-    main()
+    main_delete_files()
 

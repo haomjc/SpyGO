@@ -166,7 +166,7 @@ class CutterField:
             topremDEPTH = tool_settings.topremDEPTH
             topremRADIUS = RHO_STRAIGHT
         else: # feature disabled
-            topremRADIUS = 1000
+            topremRADIUS = 50
             Czblade = RHO*sin(BLADEANGLE*pi/180)
             theta_iniz_blade = asin((Czblade + EDGERADIUS)/(RHO + EDGERADIUS))
         
@@ -190,7 +190,7 @@ class CutterField:
             flankremRADIUS = RHO_STRAIGHT
         else: # feature diabled
             flankremRADIUS = RHO
-            flankremDEPTH = 40
+            flankremDEPTH = 30
             flankremANGLE = 0
             if bounds_data == False:
                 if tool_settings.flankremANGLE != 0:
@@ -492,7 +492,7 @@ class DesignData:
         if flank == 'concave':
             machine_field_flank = machine_field.concave
         else:
-            machine_field_flank = machine_field_flank.convex
+            machine_field_flank = machine_field.convex
 
         return machine_field_flank
 
