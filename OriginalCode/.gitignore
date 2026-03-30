@@ -1,0 +1,11 @@
+Casadi/
+Temp/
+cpp_project/
+**.step
+**.FCstd
+build/
+step_files/
+**.TPL
+**.pyc
+**.FCBak
+**.json

@@ -338,7 +338,7 @@ def unitTwist(h, axis, q):
     """
     axis = axis.reshape(3,)
     q = q.reshape(3,)
-    if h == np.Inf: # prismatic
+    if h == np.inf: # prismatic
         uT = np.concatenate((axis, 0, 0, 0), axis = 0)
     else:
         uT = np.concatenate(
@@ -365,7 +365,7 @@ def expTw(unitTwist, x, helix):
         * Inf -> prismatic joint
         * finite number =/= 0 -> generic helical joint
     """
-    if helix == np.Inf: # it is a prismatic joint
+    if helix == np.inf: # it is a prismatic joint
         axis = unitTwist[0:3]
         R = np.eye(3)
         d = axis*x

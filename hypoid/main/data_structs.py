@@ -268,6 +268,8 @@ class MachineField:
     SW4: float = 0.0
     SW5: float = 0.0
     SW6: float = 0.0
+    Horizontal: float = 0.0
+    Vertical: float = 0.0 
 
     def __str__(self, tabstring = '', indent = 3):
         return log_dataclass(self)
@@ -484,12 +486,12 @@ class DesignData:
     # getters
     def get_machine_field(self, member: Literal["gear", "pinion"], flank: Literal["concave", "convex"]):
 
-        if member == 'pinion':
+        if member.lower() == 'pinion':
             machine_field = self.pinion_machine_settings
         else:
             machine_field = self.gear_machine_settings
 
-        if flank == 'concave':
+        if flank.lower() == 'concave':
             machine_field_flank = machine_field.concave
         else:
             machine_field_flank = machine_field.convex
@@ -498,18 +500,24 @@ class DesignData:
 
     def get_tool_field(self, member: Literal["gear", "pinion"], flank: Literal["concave", "convex"]):
 
-        if member == 'pinion':
+        if member.lower() == 'pinion':
             tool_field = self.pinion_cutter_data
         else:
             tool_field = self.gear_cutter_data
 
-        if flank == 'concave':
+        if flank.lower() == 'concave':
             tool_field_flank = tool_field.concave
         else:
             tool_field_flank = tool_field.convex
 
         return tool_field_flank
     
+    def get_common_field(self, member: Literal["gear", "pinion"]):
+        if member.lower() == 'pinion':
+            return self.pinion_common_data
+        else:
+            return self.gear_common_data
+        
     # setters
     def copy_machine_tool_settings(self, member: Literal["gear", "pinion", "both"], flank: Literal["concave", "convex", "both"], data: "DesignData"):
         

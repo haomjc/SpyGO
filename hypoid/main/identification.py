@@ -190,8 +190,8 @@ def identification_bounds(designData:DesignData, member, flank):
     cutter_field_LB.topremRADIUS = 5*scaling
     cutter_field_UB.topremRADIUS = 100*scaling
 
-    cutter_field_LB.topremDEPTH = 1.5
-    cutter_field_UB.topremDEPTH = scaling
+    cutter_field_LB.topremDEPTH = 0.1 * scaling  # 齿顶修缘深度下界
+    cutter_field_UB.topremDEPTH = 2.0 * scaling  # 齿顶修缘深度上界
 
     cutter_field_LB.topremANGLE = -5
     cutter_field_UB.topremANGLE = +5
@@ -199,8 +199,8 @@ def identification_bounds(designData:DesignData, member, flank):
     cutter_field_LB.flankremRADIUS = 5*scaling
     cutter_field_UB.flankremRADIUS = 100*scaling
 
-    cutter_field_LB.flankremDEPTH = scaling
-    cutter_field_UB.flankremDEPTH = 20
+    cutter_field_LB.flankremDEPTH = 0.1 * scaling  # 齿根修缘深度下界
+    cutter_field_UB.flankremDEPTH = 2.0 * scaling  # 齿根修缘深度上界
 
     cutter_field_LB.flankremANGLE = -5
     cutter_field_UB.flankremANGLE = +5
@@ -510,6 +510,9 @@ def machine_identification_problem(triplets, x_index, lb, ub, lb_scaling, ub_sca
     # scaling bounds for all variables (those will just scale the properly the problem and are not the real bounds)
     lb_scaling = reorder_identification_variables(lb_scaling, csi_lb, theta_lb, phi_lb, h_lb, pg_lb, ng_lb, Vgt_lb, SPARSITY_FLAG).full().reshape(-1,1, order = 'F')
     ub_scaling = reorder_identification_variables(ub_scaling, csi_ub, theta_ub, phi_ub, h_ub, pg_ub, ng_ub, Vgt_ub, SPARSITY_FLAG).full().reshape(-1,1, order = 'F')
+    
+    # 确保缩放边界顺序正确 (lb_scaling < ub_scaling)
+    lb_scaling, ub_scaling = np.minimum(lb_scaling, ub_scaling), np.maximum(lb_scaling, ub_scaling)
 
     # actual bounds calculation
     csi_lb = np.maximum(csi_num - csi_num.max(), 0.000+0.05)
@@ -557,7 +560,7 @@ def machine_identification_problem(triplets, x_index, lb, ub, lb_scaling, ub_sca
 
     # managing bound locked variables (upper bound == lower bound)
     index_mask = ub - lb == 0
-    x0 = (values - lb_scaling)/(ub_scaling - lb_scaling)
+    x0 = (values - lb_scaling) / (ub_scaling - lb_scaling)
     lbx = (lb - lb_scaling) / (ub_scaling - lb_scaling)
     ubx = (ub - lb_scaling) / (ub_scaling - lb_scaling)
     x0[index_mask] = lb_scaling[index_mask]
@@ -804,7 +807,7 @@ def approxToolIdentification_casadi(data: DesignData, member, RHO = None):
 
     if member.lower() == 'gear':
         pressAngCvx = alphanD # drive should always be convex for gear and concave for pinion, but it may happen to have inverse situations
-        pressAngCnv = alphanC 
+        pressAngCnv = alphanC
     else:
         pressAngCnv = alphanD
         pressAngCvx = alphanC
