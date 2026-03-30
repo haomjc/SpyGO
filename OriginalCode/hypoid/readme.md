@@ -1,0 +1,1 @@
+Hypoid gear library. This library aims to provide tools for gear design, simulation and optimization. Simulation is interfaced with Calyx (Ansol Transmission3D)

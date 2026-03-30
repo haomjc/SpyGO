@@ -1,0 +1,661 @@
+﻿\documentclass{article}
+\usepackage{pdflscape}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{geometry}
+\geometry{a4paper, margin=5mm}
+\usepackage{amsmath}
+\usepackage{xeCJK}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning,calc}
+\setCJKmainfont{SimSun}
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+
+\begin{document}
+
+\title{准双曲面齿轮参数计算对比}
+\date{}
+\maketitle
+
+\section{参数定义与说明}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{图片.png}
+    \caption{准双曲面齿轮几何参数示意图}
+\end{figure}
+
+\begin{quote}
+\small
+\textit{注：顶点超过轴交错点的距离，当顶点位于相应锥体的轴交错点内侧时为正值。}
+\end{quote}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lp{6cm}lp{6cm}}
+\toprule
+\textbf{编号} & \textbf{参数说明} & \textbf{编号} & \textbf{参数说明} \\
+\midrule
+1 & 面锥顶点超过轴交错点的距离 ($t_{zF1}$) & 9 & 根锥角 ($\delta_{f1}, \delta_{f2}$) \\
+2 & 根锥顶点超过轴交错点的距离 ($t_{zR1}$) & 10 & 面锥角/顶锥角 ($\delta_{a1}, \delta_{a2}$) \\
+3 & 节锥顶点超过轴交错点的距离 ($t_{z1}$) & 11 & 大轮齿宽 ($b_2$) \\
+4 & 轮冠至轴交错点的距离 ($t_{xo1}, t_{xo2}$) & 12 & 偏置距 ($a$ 或 $E$) \\
+5 & 前轮冠至轴交错点的距离 ($t_{xi1}$) & 13 & 安装距离 \\
+6 & 外径 ($d_{ae1}, d_{ae2}$) & 14 & 节锥角 ($\delta_2$) \\
+7 & 外端节圆直径 ($d_{e1}, d_{e2}$) & 15 & 外锥距 ($R_e$) \\
+8 & 轴交角 ($\Sigma$) & 16 & 小轮齿宽 ($b_1$) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{参数来源与计算公式}
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\begin{tabular}{@{}cp{2.3cm}p{1.2cm}p{6cm}p{4cm}@{}}
+\toprule
+\textbf{编号} & \textbf{参数} & \textbf{来源} & \textbf{计算公式} & \textbf{依赖输入} \\
+\midrule
+1 & 齿数 $z_1, z_2$ & 输入 & -- & -- \\
+2 & 传动比 $u$ & 输入 & $u = z_2/z_1$ & $z_1, z_2$ \\
+3 & 偏置距 $a$ & 输入 & -- & -- \\
+4 & 中点螺旋角 $\beta_{m1}$ & 输入 & -- & -- \\
+5 & 刀具半径 $r_{c0}$ & 输入 & -- & -- \\
+6 & 轴交角 $\Sigma$ & 输入 & $\Sigma = 90^\circ$ & -- \\
+7 & 大轮外径 $d_{e2}$ & 输入 & -- & -- \\
+8 & 大轮齿宽 $b_2$ & 输入 & -- & -- \\
+\midrule
+9 & 驱动面压力角 $\alpha_{D}$ & 输入 & -- & -- \\
+10 & 非驱动面压力角 $\alpha_{C}$ & 输入 & -- & -- \\
+11 & 小轮齿顶高系数 $k_{hap1}$ & 输入 & -- & -- \\
+12 & 大轮齿顶高系数 $k_{hap2}$ & 输入 & -- & -- \\
+13 & 小轮齿根高系数 $k_{hfp1}$ & 输入 & -- & -- \\
+14 & 大轮齿根高系数 $k_{hfp2}$ & 输入 & -- & -- \\
+15 & 变位系数 $x_{hm1}$ & 输入 & -- & -- \\
+16 & 收缩齿类型 taper & 输入 & -- & -- \\
+\midrule
+17 & 轴交角偏差 $\Delta\Sigma$ & 迭代辅助 & $\Delta\Sigma = \Sigma - 90^\circ$ & $\Sigma$ \\
+18 & 初值节锥角 $\delta_{2i}$ & 迭代辅助 & $\delta_{2i} = \arctan\frac{u\cos\Delta\Sigma}{2(1-u\sin\Delta\Sigma)}$ & $u, \Delta\Sigma$ \\
+19 & 大轮中点半径 $r_{mpt2}$ & 迭代辅助 & $r_{mpt2} = (d_{e2} - b_2\sin\delta_{2i})/2$ & $d_{e2}, b_2, \delta_{2i}$ \\
+20 & 偏置角 $\varepsilon'$ & 迭代辅助 & $\sin\varepsilon' = a / r_{mpt2}$ & $a, r_{mpt2}$ \\
+21 & 几何系数 $K_1$ & 迭代辅助 & $K_1 = \tan\beta_{m1}\sin\varepsilon' + \cos\varepsilon'$ & $\beta_{m1}, \varepsilon'$ \\
+\midrule
+22 & 极限曲率半径 $\rho_{lim}$ & 迭代 & $\rho_{lim} = f(\nu)$ & $\nu$ \\
+23 & 迭代变量 $\nu$ & 迭代 & $\Delta=|\rho_\beta/\rho_{lim}-1|<0.01$ & 迭代收敛 \\
+\midrule
+24 & 小轮螺旋角 $\beta_{m1}$ & 计算 & $\beta_{m1} = \arctan\frac{K_1 + \delta K - \cos\varepsilon_1'}{\sin\varepsilon_1'}$ & $\nu$ \\
+25 & 大轮螺旋角 $\beta_{m2}$ & 计算 & $\beta_{m2} = \beta_{m1} - \varepsilon_1'$ & $\beta_{m1}, \varepsilon_1'$ \\
+26 & 小轮节锥角 $\delta_1$ & 计算 & $\delta_1 = f(\nu)$ & $\nu$ \\
+27 & 大轮节锥角 $\delta_2$ & 计算 & $\delta_2 = f(\nu)$ & $\nu$ \\
+28 & 小轮锥距 $R_{m1}$ & 计算 & $R_{m1} = (r_{mn1} + \Delta r_{mpt1})/\sin\delta_1$ & $\nu, \delta_1$ \\
+29 & 大轮锥距 $R_{m2}$ & 计算 & $R_{m2} = r_{mpt2}/\sin\delta_2$ & $r_{mpt2}, \delta_2$ \\
+\midrule
+30 & 法向模数 $m_{mn}$ & 计算 & $m_{mn} = 2R_{m2}\sin\delta_2\cos\beta_{m2}/z_2$ & $R_{m2}, \delta_2, \beta_{m2}, z_2$ \\
+31 & 平均压力角 $\alpha_n$ & 计算 & $\alpha_n = (\alpha_{nD} + \alpha_{nC})/2$ & $\alpha_D, \alpha_C$ \\
+\midrule
+32 & 小轮齿顶高 $h_{am1}$ & 计算 & $h_{am1} = m_{mn}(k_{hap1} + x_{hm1})$ & $m_{mn}, k_{hap1}, x_{hm1}$ \\
+33 & 大轮齿顶高 $h_{am2}$ & 计算 & $h_{am2} = m_{mn}(k_{hap2} - x_{hm1})$ & $m_{mn}, k_{hap2}, x_{hm1}$ \\
+34 & 小轮齿根高 $h_{fm1}$ & 计算 & $h_{fm1} = m_{mn}(k_{hfp1} - x_{hm1})$ & $m_{mn}, k_{hfp1}, x_{hm1}$ \\
+35 & 大轮齿根高 $h_{fm2}$ & 计算 & $h_{fm2} = m_{mn}(k_{hfp2} + x_{hm1})$ & $m_{mn}, k_{hfp2}, x_{hm1}$ \\
+\midrule
+36 & 大轮齿顶角 $\theta_{a2}$ & 计算 & $\theta_{a2} = \arctan(h_{fm1}/R_{m2})$ (Standard) & $h_{fm1}, R_{m2}$, taper \\
+37 & 大轮齿根角 $\theta_{f2}$ & 计算 & $\theta_{f2} = \sum\theta_f - \theta_{a2}$ & $\sum\theta_f, \theta_{a2}$ \\
+38 & 小轮齿顶角 $\theta_{a1}$ & 计算 & $\theta_{a1} = \delta_{a1} - \delta_1$ & $\delta_{a1}, \delta_1$ \\
+39 & 小轮齿根角 $\theta_{f1}$ & 计算 & $\theta_{f1} = \delta_1 - \delta_{f1}$ & $\delta_1, \delta_{f1}$ \\
+\midrule
+40 & 大轮顶锥角 $\delta_{a2}$ & 计算 & $\delta_{a2} = \delta_2 + \theta_{a2}$ & $\delta_2, \theta_{a2}$ \\
+41 & 大轮根锥角 $\delta_{f2}$ & 计算 & $\delta_{f2} = \delta_2 - \theta_{f2}$ & $\delta_2, \theta_{f2}$ \\
+42 & 小轮顶锥角 $\delta_{a1}$ & 计算 & $\delta_{a1} = \arcsin(\sin\Delta\Sigma\sin\delta_{f2} + \cos\Delta\Sigma\cos\delta_{f2}\cos\zeta_R)$ & $\Delta\Sigma, \delta_{f2}, \zeta_R$ \\
+43 & 小轮根锥角 $\delta_{f1}$ & 计算 & $\delta_{f1} = \arcsin(\sin\Delta\Sigma\sin\delta_{a2} + \cos\Delta\Sigma\cos\delta_{a2}\cos\zeta_O)$ & $\Delta\Sigma, \delta_{a2}, \zeta_O$ \\
+\midrule
+44 & 小轮外径 $d_{ae1}$ & 计算 & $d_{ae1} = d_{e1} + 2h_{ae1}\cos\delta_1$ & $d_{e1}, h_{ae1}, \delta_1$ \\
+45 & 大轮外径 $d_{ae2}$ & 计算 & $d_{ae2} = d_{e2} + 2h_{ae2}\cos\delta_2$ & $d_{e2}, h_{ae2}, \delta_2$ \\
+\midrule
+46 & 小轮齿厚 $s_{mn1}$ & 计算 & $s_{mn1} = 0.5m_{mn}\pi + 2m_{mn}(x_{sm1} + x_{hm1}\tan\alpha_n)$ & $m_{mn}, x_{hm1}, \alpha_n$ \\
+47 & 大轮齿厚 $s_{mn2}$ & 计算 & $s_{mn2} = 0.5m_{mn}\pi + 2m_{mn}(x_{sm2} - x_{hm1}\tan\alpha_n)$ & $m_{mn}, x_{hm1}, \alpha_n$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{landscape}
+\section{参数依赖关系图}
+\thispagestyle{empty}
+\begin{tikzpicture}[
+    xscale=1.1, yscale=0.72,
+    box/.style={rectangle, draw, font=\fontsize{7}{7.5}\selectfont, inner sep=1.2mm, align=center, minimum height=6mm},
+    label/.style={font=\fontsize{6}{6.5}\selectfont},
+    layer/.style={font=\fontsize{8}{9}\selectfont\bfseries},
+    arrow/.style={->, line width=0.6pt}
+]
+
+% ========== 第1层：输入参数 ==========
+\node[layer] at (-1, 19) {第1层：输入参数};
+
+% 锥体几何
+\node[box, fill=blue!15] (z1) at (0, 17.5) {$z_1$};
+\node[box, fill=blue!15] (z2) at (1.2, 17.5) {$z_2$};
+\node[box, fill=blue!20] (u) at (2.4, 17.5) {$u$};
+\node[box, fill=blue!20] (a) at (3.6, 17.5) {$a$};
+\node[box, fill=blue!20] (SIGMA) at (4.8, 17.5) {$\Sigma$};
+\node[box, fill=blue!20] (de2) at (6, 17.5) {$d_{e2}$};
+\node[box, fill=blue!20] (b2) at (7.2, 17.5) {$b_2$};
+\node[box, fill=blue!20] (betam1in) at (8.4, 17.5) {$\beta_{m1}$};
+\node[box, fill=blue!20] (rc0) at (9.6, 17.5) {$r_{c0}$};
+
+\node[label] at (0, 16.9) {[1]小轮齿数};
+\node[label] at (1.2, 16.9) {[1]大轮齿数};
+\node[label] at (2.4, 16.9) {[2]传动比};
+\node[label] at (3.6, 16.9) {[3]偏置距};
+\node[label] at (4.8, 16.9) {[6]轴交角};
+\node[label] at (6, 16.9) {[7]大轮外径};
+\node[label] at (7.2, 16.9) {[8]齿宽};
+\node[label] at (8.4, 16.9) {[4]螺旋角};
+\node[label] at (9.6, 16.9) {[5]刀具半径};
+
+% 齿形参数
+\node[box, fill=blue!15] (alphaD) at (11.5, 17.5) {$\alpha_{D}$};
+\node[box, fill=blue!15] (alphaC) at (12.7, 17.5) {$\alpha_{C}$};
+\node[box, fill=blue!15] (khap1) at (14.2, 17.5) {$k_{hap1}$};
+\node[box, fill=blue!15] (khap2) at (15.4, 17.5) {$k_{hap2}$};
+\node[box, fill=blue!15] (khfp1) at (16.6, 17.5) {$k_{hfp1}$};
+\node[box, fill=blue!15] (khfp2) at (17.8, 17.5) {$k_{hfp2}$};
+\node[box, fill=blue!15] (xhm1) at (19, 17.5) {$x_{hm1}$};
+\node[box, fill=blue!15] (taper) at (20.2, 17.5) {taper};
+
+\node[label] at (11.5, 16.9) {[9]驱动压力角};
+\node[label] at (12.7, 16.9) {[10]非驱压力角};
+\node[label] at (14.2, 16.9) {[11]齿顶系数1};
+\node[label] at (15.4, 16.9) {[12]齿顶系数2};
+\node[label] at (16.6, 16.9) {[13]齿根系数1};
+\node[label] at (17.8, 16.9) {[14]齿根系数2};
+\node[label] at (19, 16.9) {[15]变位系数};
+\node[label] at (20.2, 16.9) {[16]收缩类型};
+
+% z1,z2 -> u (虚线表示定义关系)
+\draw[arrow, blue!50, dashed] (z1) to[bend left=15] (u);
+\draw[arrow, blue!50, dashed] (z2) to[bend right=15] (u);
+
+% ========== 第2层：迭代辅助参数 ==========
+\node[layer] at (-1, 15.5) {第2层：迭代辅助};
+
+\node[box, fill=green!20] (DeltaSIGMA) at (2, 14) {$\Delta\Sigma$};
+\node[box, fill=green!20] (deltaint2) at (4, 14) {$\delta_{2i}$};
+\node[box, fill=green!20] (rmpt2) at (6, 14) {$r_{mpt2}$};
+\node[box, fill=green!20] (epsi) at (8, 14) {$\varepsilon'$};
+\node[box, fill=green!20] (K1) at (10, 14) {$K_1$};
+
+\node[label] at (2, 13.4) {[17]$\Sigma$-90°};
+\node[label] at (4, 13.4) {[18]初值节锥角};
+\node[label] at (6, 13.4) {[19]大轮中点半径};
+\node[label] at (8, 13.4) {[20]偏置角};
+\node[label] at (10, 13.4) {[21]几何系数};
+
+% 输入 -> 迭代辅助
+\draw[arrow, green!60!black] (SIGMA) to[bend right=10] (DeltaSIGMA);
+\draw[arrow, green!60!black] (u) to[bend left=10] (deltaint2);
+\draw[arrow, green!60!black] (DeltaSIGMA) to[bend left=10] (deltaint2);
+\draw[arrow, green!60!black] (de2) to[bend left=10] (rmpt2);
+\draw[arrow, green!60!black] (b2) to[bend left=10] (rmpt2);
+\draw[arrow, green!60!black] (deltaint2) to[bend left=10] (rmpt2);
+\draw[arrow, green!60!black] (a) to[bend left=15] (epsi);
+\draw[arrow, green!60!black] (rmpt2) to[bend left=10] (epsi);
+\draw[arrow, green!60!black] (betam1in) to[bend left=10] (K1);
+\draw[arrow, green!60!black] (epsi) to[bend left=10] (K1);
+
+% ========== 第3层：迭代求解 ==========
+\node[layer] at (-1, 12) {第3层：迭代求解};
+
+\node[box, fill=orange!25, minimum width=2cm] (ni) at (5, 10.5) {$\nu$};
+\node[box, fill=orange!15] (rholim) at (9, 10.5) {$\rho_{lim}$};
+\node[box, fill=orange!15] (rhobeta) at (12, 10.5) {$\rho_{\beta}$};
+\node[box, fill=orange!30, minimum width=2cm] (Delta) at (15, 10.5) {$\Delta=|\frac{\rho_\beta}{\rho_{lim}}-1|$};
+
+\node[label] at (5, 9.9) {[23]偏置角(轴向)};
+\node[label] at (9, 9.9) {[22]极限曲率半径};
+\node[label] at (12, 9.9) {[5]刀具曲率半径};
+\node[label] at (15, 9.9) {收敛判据};
+
+% 迭代反馈回路
+\draw[arrow, orange!70!red, line width=1pt, dashed] (Delta.north) to[out=90, in=90, looseness=1.5] node[above, font=\fontsize{5}{6}\selectfont, yshift=2mm] {$\Delta>0.01$? 更新$\nu$} (ni.north);
+
+% 迭代辅助 + 输入 -> 迭代
+\draw[arrow, orange] (DeltaSIGMA) to[bend left=10] (ni);
+\draw[arrow, orange] (deltaint2) to[bend left=10] (ni);
+\draw[arrow, orange] (rmpt2) to[bend left=10] (ni);
+\draw[arrow, orange] (epsi) to[bend right=10] (ni);
+\draw[arrow, orange] (K1) to[bend right=10] (ni);
+\draw[arrow, orange] (u) to[bend left=20] (ni);
+\draw[arrow, orange] (a) to[bend left=25] (ni);
+\draw[arrow, orange] (betam1in) to[bend left=20] (ni);
+\draw[arrow, orange] (rc0) to[bend left=15] (rhobeta);
+
+% ni -> rholim (通过中间几何)
+\draw[arrow, orange] (ni) to[bend left=10] (rholim);
+\draw[arrow, orange] (rholim) to[bend left=10] (Delta);
+\draw[arrow, orange] (rhobeta) to[bend right=10] (Delta);
+
+
+% ========== 第4层：核心几何输出 ==========
+\node[layer] at (-1, 8.5) {第4层：核心几何};
+
+\node[box, fill=red!20] (betam1) at (2, 7) {$\beta_{m1}$};
+\node[box, fill=red!20] (betam2) at (4, 7) {$\beta_{m2}$};
+\node[box, fill=red!20] (delta1) at (6, 7) {$\delta_1$};
+\node[box, fill=red!20] (delta2) at (8, 7) {$\delta_2$};
+\node[box, fill=red!20] (Rm1) at (10, 7) {$R_{m1}$};
+\node[box, fill=red!20] (Rm2) at (12, 7) {$R_{m2}$};
+
+\node[label] at (2, 6.4) {[24]小轮螺旋角};
+\node[label] at (4, 6.4) {[25]大轮螺旋角};
+\node[label] at (6, 6.4) {[26]小轮节锥角};
+\node[label] at (8, 6.4) {[27]大轮节锥角};
+\node[label] at (10, 6.4) {[28]小轮锥距};
+\node[label] at (12, 6.4) {[29]大轮锥距};
+
+% 迭代 -> 核心几何
+\draw[arrow, red] (ni) to[bend left=10] (betam1);
+\draw[arrow, red] (ni) to[bend left=5] (betam2);
+\draw[arrow, red] (ni) to[bend right=5] (delta1);
+\draw[arrow, red] (ni) to[bend right=10] (delta2);
+\draw[arrow, red] (ni) to[bend right=15] (Rm1);
+\draw[arrow, red] (ni) to[bend right=20] (Rm2);
+
+% ========== 第5层：模数与压力角 ==========
+\node[layer] at (14, 8.5) {第5层：模数/压力角};
+
+\node[box, fill=purple!20] (mmn) at (15, 7) {$m_{mn}$};
+\node[box, fill=purple!20] (alphan) at (17.5, 7) {$\alpha_n$};
+
+\node[label] at (15, 6.4) {[30]法向模数};
+\node[label] at (17.5, 6.4) {[31]平均压力角};
+
+% -> 模数
+\draw[arrow, purple] (delta2) to[bend left=10] (mmn);
+\draw[arrow, purple] (betam2) to[bend left=15] (mmn);
+\draw[arrow, purple] (Rm2) to[bend left=10] (mmn);
+\draw[arrow, purple] (z2) to[bend left=25] (mmn);
+
+% -> 平均压力角
+\draw[arrow, purple] (alphaD) to[bend left=10] (alphan);
+\draw[arrow, purple] (alphaC) to[bend left=10] (alphan);
+
+% ========== 第6层：齿高参数 ==========
+\node[layer] at (-1, 5) {第6层：齿高参数};
+
+\node[box, fill=brown!20] (ham1) at (2, 3.5) {$h_{am1}$};
+\node[box, fill=brown!20] (ham2) at (4, 3.5) {$h_{am2}$};
+\node[box, fill=brown!20] (hfm1) at (6, 3.5) {$h_{fm1}$};
+\node[box, fill=brown!20] (hfm2) at (8, 3.5) {$h_{fm2}$};
+
+\node[label] at (2, 2.9) {[32]小轮齿顶高};
+\node[label] at (4, 2.9) {[33]大轮齿顶高};
+\node[label] at (6, 2.9) {[34]小轮齿根高};
+\node[label] at (8, 2.9) {[35]大轮齿根高};
+
+% 模数+系数 -> 齿高
+\draw[arrow, brown] (mmn) to[bend left=10] (ham1);
+\draw[arrow, brown] (mmn) to[bend left=10] (ham2);
+\draw[arrow, brown] (mmn) to[bend left=10] (hfm1);
+\draw[arrow, brown] (mmn) to[bend left=10] (hfm2);
+\draw[arrow, brown] (khap1) to[bend left=20] (ham1);
+\draw[arrow, brown] (khap2) to[bend left=20] (ham2);
+\draw[arrow, brown] (khfp1) to[bend left=20] (hfm1);
+\draw[arrow, brown] (khfp2) to[bend left=20] (hfm2);
+\draw[arrow, brown] (xhm1) to[bend left=15] (ham1);
+\draw[arrow, brown] (xhm1) to[bend left=15] (ham2);
+\draw[arrow, brown] (xhm1) to[bend left=15] (hfm1);
+\draw[arrow, brown] (xhm1) to[bend left=15] (hfm2);
+
+% ========== 第7层：齿角 ==========
+\node[layer] at (10, 5) {第7层：齿角};
+
+\node[box, fill=yellow!30] (thetaa2) at (11, 3.5) {$\theta_{a2}$};
+\node[box, fill=yellow!30] (thetaf2) at (13, 3.5) {$\theta_{f2}$};
+\node[box, fill=yellow!30] (thetaa1) at (15, 3.5) {$\theta_{a1}$};
+\node[box, fill=yellow!30] (thetaf1) at (17, 3.5) {$\theta_{f1}$};
+
+\node[label] at (11, 2.9) {[36]大轮齿顶角};
+\node[label] at (13, 2.9) {[37]大轮齿根角};
+\node[label] at (15, 2.9) {[38]小轮齿顶角};
+\node[label] at (17, 2.9) {[39]小轮齿根角};
+
+% 齿高+锥距+taper -> 齿角
+\draw[arrow, yellow!60!black] (hfm1) to[bend left=10] (thetaa2);
+\draw[arrow, yellow!60!black] (hfm2) to[bend left=10] (thetaf2);
+\draw[arrow, yellow!60!black] (Rm2) to[bend left=15] (thetaa2);
+\draw[arrow, yellow!60!black] (taper) to[bend left=25] (thetaa2);
+\draw[arrow, yellow!60!black] (taper) to[bend left=25] (thetaf2);
+
+% ========== 第8层：锥角 ==========
+\node[layer] at (-1, 1.5) {第8层：锥角};
+
+\node[box, fill=red!25] (deltaa2) at (2, 0) {$\delta_{a2}$};
+\node[box, fill=red!25] (deltaf2) at (4, 0) {$\delta_{f2}$};
+\node[box, fill=red!25] (deltaa1) at (6, 0) {$\delta_{a1}$};
+\node[box, fill=red!25] (deltaf1) at (8, 0) {$\delta_{f1}$};
+
+\node[label] at (2, -0.6) {[40]大轮顶锥角};
+\node[label] at (4, -0.6) {[41]大轮根锥角};
+\node[label] at (6, -0.6) {[42]小轮顶锥角};
+\node[label] at (8, -0.6) {[43]小轮根锥角};
+
+% 节锥角+齿角 -> 锥角
+\draw[arrow, red!70!black] (delta2) to[bend left=15] (deltaa2);
+\draw[arrow, red!70!black] (delta2) to[bend left=15] (deltaf2);
+\draw[arrow, red!70!black] (thetaa2) to[bend left=10] (deltaa2);
+\draw[arrow, red!70!black] (thetaf2) to[bend left=10] (deltaf2);
+\draw[arrow, red!70!black] (delta1) to[bend left=15] (deltaa1);
+\draw[arrow, red!70!black] (delta1) to[bend left=15] (deltaf1);
+\draw[arrow, red!70!black] (thetaa1) to[bend left=10] (deltaa1);
+\draw[arrow, red!70!black] (thetaf1) to[bend left=10] (deltaf1);
+
+% ========== 第9层：外径与齿厚 ==========
+\node[layer] at (10, 1.5) {第9层：外径/齿厚};
+
+\node[box, fill=gray!20] (dae1) at (11, 0) {$d_{ae1}$};
+\node[box, fill=gray!20] (dae2) at (13, 0) {$d_{ae2}$};
+\node[box, fill=cyan!20] (smn1) at (15.5, 0) {$s_{mn1}$};
+\node[box, fill=cyan!20] (smn2) at (17.5, 0) {$s_{mn2}$};
+
+\node[label] at (11, -0.6) {[44]小轮外径};
+\node[label] at (13, -0.6) {[45]大轮外径};
+\node[label] at (15.5, -0.6) {[46]小轮齿厚};
+\node[label] at (17.5, -0.6) {[47]大轮齿厚};
+
+% -> 外径
+\draw[arrow, gray] (delta1) to[bend left=20] (dae1);
+\draw[arrow, gray] (delta2) to[bend left=20] (dae2);
+\draw[arrow, gray] (ham1) to[bend left=15] (dae1);
+\draw[arrow, gray] (ham2) to[bend left=15] (dae2);
+\draw[arrow, gray] (thetaa1) to[bend left=10] (dae1);
+\draw[arrow, gray] (thetaa2) to[bend left=10] (dae2);
+
+% -> 齿厚
+\draw[arrow, cyan] (mmn) to[bend left=10] (smn1);
+\draw[arrow, cyan] (mmn) to[bend left=10] (smn2);
+\draw[arrow, cyan] (alphan) to[bend left=10] (smn1);
+\draw[arrow, cyan] (alphan) to[bend left=10] (smn2);
+\draw[arrow, cyan] (xhm1) to[bend left=20] (smn1);
+\draw[arrow, cyan] (xhm1) to[bend left=20] (smn2);
+\draw[arrow, cyan] (z1) to[out=-60, in=150] (smn1);
+
+\end{tikzpicture}
+\end{landscape}
+
+
+\newcommand{\high}[1]{\tikz[baseline=(n.base)]\node[draw=red,inner sep=1.5pt, rounded corners=2pt, line width=0.8pt](n){#1};}
+
+\section{齿轮参数对比表}
+
+\subsection*{1. J4-2 (5/75)}
+\begin{table}[htbp]
+\centering
+\caption{J4-2 齿轮测量与计算参数对比}
+\scriptsize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{参数} & \textbf{测量(小轮)} & \textbf{计算(小轮)} & \textbf{测量(大轮)} & \textbf{计算(大轮)} \\
+\midrule
+齿数 $z$ & 5 & 5 & 75 & 75 \\
+模数 $m$ (mm) & 2 & 2.000 & -- & -- \\
+齿面宽 $b$ (mm) & 13.979 & 13.96 & 11 & 11.00 \\
+压力角 $\alpha$ & 20$^\circ$(平均) & 19$^\circ$28' / -20$^\circ$32' & 20$^\circ$(平均) & -- \\
+螺旋角 $\beta$ & 50.07$^\circ$ & 50$^\circ$00' & 27.316$^\circ$ & 27$^\circ$16' \\
+螺旋方向 & 左旋 & 左旋 & 右旋 & 右旋 \\
+偏置距 $E$ (mm) & 27 & 27.00 & -- & -- \\
+齿顶高 $h_a$ (mm) & 2.868 & 2.82 & 0.303 & 0.27 \\
+齿根高 $h_f$ (mm) & 0.798 & 0.76 & 3.322 & 3.26 \\
+全齿高 $h$ (mm) & 3.666 & 3.58 & 3.625 & 3.53 \\
+工作齿高 $h_k$ (mm) & -- & 3.06 & -- & 3.06 \\
+外径 $d_a$ (mm) & 19.846 & 19.74 & 150.06 & 150.05 \\
+节圆直径 $d$ (mm) & -- & 14.13 & 150 & 150.00 \\
+名义半径 $r_{nom}$ (mm) & -- & 6.41 & -- & 69.53 \\
+外锥距 $R_e$ (mm) & -- & 76.91 & -- & 75.37 \\
+\midrule
+\multicolumn{5}{l}{\textbf{角度参数}} \\
+节锥角 $\delta$ & 5.27$^\circ$ & 5.16$^\circ$ & 84.289$^\circ$ & 84.17$^\circ$ \\
+面锥角 $\delta_a$ & 7.99$^\circ$ & 7.33$^\circ$ & 84.82$^\circ$ & 84.30$^\circ$ \\
+根锥角 $\delta_f$ & 4.78$^\circ$ & 5.05$^\circ$ & 80.00$^\circ$ & \high{81.49$^\circ$} \\
+齿根角 $\theta_f$ & -- & 0.11$^\circ$ & -- & 2.29$^\circ$ \\
+\midrule
+\multicolumn{5}{l}{\textbf{位置参数 (相对于轴交错点)}} \\
+节锥顶点距离 (mm) & -- & 5.33 & -- & 0.55 \\
+面锥顶点距离 (mm) & -- & 3.51 & -- & 0.55 \\
+根锥顶点距离 (mm) & -- & -0.21 & -- & 0.55 \\
+轮冠距离 (mm) & -- & 70.87 & -- & 6.68 \\
+前轮冠距离 (mm) & -- & 57.02 & -- & 5.63 \\
+\midrule
+\multicolumn{5}{l}{\textbf{其他}} \\
+刀具半径 $r_{c0}$ (mm) & 57.15 & -- & -- & -- \\
+齿侧间隙 (mm) & -- & 0.10$\sim$0.13 & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{2. J5-3 (7/70)}
+\begin{table}[htbp]
+\centering
+\caption{J5-3 齿轮测量与计算参数对比}
+\scriptsize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{参数} & \textbf{测量(小轮)} & \textbf{计算(小轮)} & \textbf{测量(大轮)} & \textbf{计算(大轮)} \\
+\midrule
+齿数 $z$ & 7 & 7 & 70 & 70 \\
+模数 $m$ (mm) & 1.28 & 1.280 & -- & -- \\
+齿面宽 $b$ (mm) & 11.753 & 11.755 & 9 & 9.00 \\
+压力角 $\alpha$ & 20$^\circ$(平均) & 17$^\circ$25' / -22$^\circ$35' & 20$^\circ$(平均) & -- \\
+螺旋角 $\beta$ & 50$^\circ$11'45'' & 50$^\circ$00' & 22$^\circ$28'46'' & 22$^\circ$16' \\
+螺旋方向 & 右旋 & 右旋 & 左旋 & 左旋 \\
+偏置距 $E$ (mm) & 19 & 19.00 & -- & -- \\
+齿顶高 $h_a$ (mm) & 2.011 & 1.912 & 0.339 & 0.277 \\
+齿根高 $h_f$ (mm) & 0.713 & 0.585 & 2.333 & 2.180 \\
+全齿高 $h$ (mm) & 2.385 & 2.497 & 2.316 & 2.458 \\
+工作齿高 $h_k$ (mm) & -- & 2.165 & -- & 2.165 \\
+外径 $d_a$ (mm) & 17.092 & 16.867 & 89.693 & 89.676 \\
+节圆直径 $d$ (mm) & -- & 13.071 & 89.6 & 89.600 \\
+名义半径 $r_{nom}$ (mm) & -- & 5.807 & -- & 40.343 \\
+外锥距 $R_e$ (mm) & -- & 53.518 & -- & 45.231 \\
+\midrule
+\multicolumn{5}{l}{\textbf{角度参数}} \\
+节锥角 $\delta$ & 7.02$^\circ$ & 7.01$^\circ$ & 82.085$^\circ$ & 82.05$^\circ$ \\
+面锥角 $\delta_a$ & 10.485$^\circ$ & \high{9.28$^\circ$} & 83.218$^\circ$ & \high{82.26$^\circ$} \\
+根锥角 $\delta_f$ & 6.00$^\circ$ & 6.42$^\circ$ & 78.171$^\circ$ & \high{79.19$^\circ$} \\
+齿根角 $\theta_f$ & -- & 0.19$^\circ$ & -- & 2.46$^\circ$ \\
+\midrule
+\multicolumn{5}{l}{\textbf{位置参数 (相对于轴交错点)}} \\
+节锥顶点距离 (mm) & -- & 11.421 & -- & -0.188 \\
+面锥顶点距离 (mm) & -- & 9.155 & -- & -0.188 \\
+根锥顶点距离 (mm) & -- & 8.993 & -- & -0.189 \\
+轮冠距离 (mm) & -- & 41.377 & -- & 6.141 \\
+前轮冠距离 (mm) & -- & 29.782 & -- & 4.957 \\
+\midrule
+\multicolumn{5}{l}{\textbf{其他}} \\
+刀具半径 $r_{c0}$ (mm) & 38.1 & -- & -- & -- \\
+齿侧间隙 (mm) & -- & 0.10$\sim$0.13 & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection*{3. J6-2 (6/72)}
+\begin{table}[htbp]
+\centering
+\caption{J6-2 齿轮测量与计算参数对比}
+\scriptsize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{参数} & \textbf{测量(小轮)} & \textbf{计算(小轮)} & \textbf{测量(大轮)} & \textbf{计算(大轮)} \\
+\midrule
+齿数 $z$ & 6 & 6 & 72 & 72 \\
+模数 $m$ (mm) & 0.909 & 0.909 & -- & -- \\
+齿面宽 $b$ (mm) & 12.024 & 11.929 & 8 & 8.000 \\
+压力角 $\alpha$ & 20$^\circ$(平均) & 15$^\circ$42' / -24$^\circ$18' & 20$^\circ$(平均) & -- \\
+螺旋角 $\beta$ & 45.4625$^\circ$ & 45$^\circ$50' & 5$^\circ$54'30'' & 6$^\circ$18' \\
+螺旋方向 & 左旋 & 左旋 & 右旋 & 右旋 \\
+偏置距 $E$ (mm) & 18.5 & 18.500 & -- & -- \\
+齿顶高 $h_a$ (mm) & 1.658 & \high{1.463} & 0.241 & 0.174 \\
+齿根高 $h_f$ (mm) & 0.532 & 0.397 & 1.889 & 1.650 \\
+全齿高 $h$ (mm) & 2.191 & 1.860 & 2.13 & 1.824 \\
+工作齿高 $h_k$ (mm) & -- & 1.611 & -- & 1.611 \\
+外径 $d_a$ (mm) & 11.469 & 11.143 & 65.52 & 65.500 \\
+节圆直径 $d$ (mm) & -- & 8.236 & 65.448 & 65.448 \\
+名义半径 $r_{nom}$ (mm) & -- & 3.417 & -- & 28.769 \\
+外锥距 $R_e$ (mm) & -- & 35.531 & -- & 33.096 \\
+\midrule
+\multicolumn{5}{l}{\textbf{角度参数}} \\
+节锥角 $\delta$ & 6.652$^\circ$ & 6.39$^\circ$ & 81.399$^\circ$ & 81.24$^\circ$ \\
+面锥角 $\delta_a$ & 10.808$^\circ$ & \high{8.53$^\circ$} & 82.662$^\circ$ & 81.42$^\circ$ \\
+根锥角 $\delta_f$ & 5.668$^\circ$ & 6.25$^\circ$ & 76.081$^\circ$ & \high{78.32$^\circ$} \\
+齿根角 $\theta_f$ & -- & 0.14$^\circ$ & -- & 2.51$^\circ$ \\
+\midrule
+\multicolumn{5}{l}{\textbf{位置参数 (相对于轴交错点)}} \\
+节锥顶点距离 (mm) & -- & 7.015 & -- & 0.947 \\
+面锥顶点距离 (mm) & -- & 7.563 & -- & 0.947 \\
+根锥顶点距离 (mm) & -- & 4.821 & -- & 0.947 \\
+轮冠距离 (mm) & -- & 28.054 & -- & 3.832 \\
+前轮冠距离 (mm) & -- & 16.269 & -- & 2.677 \\
+\midrule
+\multicolumn{5}{l}{\textbf{其他}} \\
+刀具半径 $r_{c0}$ (mm) & 22.25 & -- & -- & -- \\
+齿侧间隙 (mm) & -- & 0.10$\sim$0.13 & -- & -- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\section{参数差异性分析}
+
+从三组齿轮的对比结果来看，J4-2这组的计算和测量数据吻合得很好，各项参数差别都不大，说明计算程序本身是可靠的。
+
+但J5-3和J6-2就出现了一些明显的偏差，主要集中在锥角上。特别是J6-2的大轮根锥角，测量值和计算值差了2度多。按照前面的依赖关系图，锥角是从齿高一步步算过来的。问题出在齿高上——J6-2小轮的齿顶高，测量是1.658mm，计算是1.463mm，本身就差了0.2mm。齿高不一样，后面算出来的齿顶角、齿根角自然也不一样，最后累积到锥角上差距就更明显了。这说明实际齿轮用的齿高系数可能和标准值不同。
+
+总的来说，计算程序在主要尺寸（节锥角、分度圆、螺旋角这些）上是准的，偏差主要出在齿高和锥角这些涉及具体切齿工艺的细节参数上。
+
+
+
+\section{小轮齿面控制参数的选择}
+
+\subsection{小轮齿面控制参数含义}
+
+按照大轮成形法切齿和小轮用刀倾修正法切齿加工的调整参数计算，在进行准双曲面齿轮副切齿加工时，总是修正小轮去配大轮。因此，合理选用小轮齿面控制参数，便可得到要求的接触区。
+
+\begin{enumerate}
+    \item \textbf{接触区沿齿高方向的移动量 $R_K$ 及沿齿长方向的移动量 $X_K$}
+    
+    此两项参数控制在标准安装位置时接触区的位置，其原点设定在大轮齿面节锥母线齿长中点处。此两值可根据需任意选取。通常对于工作齿面选取为 $R_K=0.0$，$X_K=-0.12$，可使接触区位于齿长中部偏小端，而非工作齿面选取为 $R_K=X_K=0.0$。
+
+    \item \textbf{接触区长度系数 $B_F$}
+    
+    此项系数用来控制接触区长度，即是接触区长度在齿长方向的投影与齿面宽的百分比值。对于刀倾修正切齿法，此值一般取为 0.35。
+
+    \item \textbf{接触区对角控制参数 $\Delta A_X$}
+    
+    此项系数是小轮切齿计算时的产形轮节锥距修正量，修正对角接触区。要修正外对角产生内对角接触，对于小轮凹面为正值、凸面为负值，而要修正内对角产生外对角接触，则对于小轮凹面为负值，凸面为正值。
+
+    \item \textbf{接触区对角方向角 $\alpha$}
+    
+    此项参数给定接触区的对角方向。对于小轮凹面，负数为内对角接触，正数为外对角接触。而对于小轮凸面，正数为内对角接触，负数为外对角接触。通常，轮齿接触区不允许为外对角接触，因为将减小实际的接触区长度和不利于润滑，而允许有轻微的内对角接触。通常取为零值。最大不能超过 $30^\circ$。
+
+    \item \textbf{轮副相对运动角加速度 $\varepsilon_2$}
+    
+    此项参数用于控制接触迹线方向上的接触区宽度。对于全滚切法齿轮的小轮齿面可取为 0.0004，而对于半滚切法齿轮的小轮齿面可取为 0.002。
+
+    \item \textbf{三阶控制参数 $\Delta\gamma_m$}
+    
+    此项参数用于控制接触区在小端与大端的长度和宽度。修正方法如下所述原则：为使接触区在小端的长度减小而宽度增加（即修正内对角接触），以及在大端的长度增加而宽度减小（即修正外对角接触），$\Delta\gamma_m$ 对于两齿面均取正值； 为使接触区在大端的长度减小而宽度增加（即修正内对角接触），以及在小端的长度增加而宽度减小（即修正外对角），$\Delta\gamma_m$ 对于两齿面均取负值。$\Delta\gamma_m$ 每次改变 $1^\circ$，初始计算时取 $-2^\circ$。此项参数只有在使用刀倾修正法切齿时才能使用。
+\end{enumerate}
+
+\subsection{接触分析计算}
+
+\subsubsection*{1. J4-2 (5/75)}
+
+\begin{table}[H]
+\centering
+\caption{J4-2 小轮齿面控制参数选择}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{参数} & \textbf{凹面 (外刀)} & \textbf{凸面 (内刀)} \\
+\midrule
+接触区沿齿高方向移动量 $R_K$ & 0 & 0 \\
+接触区沿齿长方向移动量 $X_K$ & 0 & 0 \\
+接触区长度系数 $B_F$ & 0.3 & 0.3 \\
+接触区对角方向角 $\alpha$ & $10^\circ$ & $10^\circ$ \\
+轮副相对运动角加速度 $\varepsilon$ ($E$) & 0.0004 & 0.0004 \\
+三阶机床安装角修正量 $\Delta \gamma_m$ & -2 & -4 \\
+小轮根锥角修正量 $\Delta \delta$ & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{media/4工作.png} \\[1ex]
+    \includegraphics[width=0.6\textwidth]{media/4非工作.png}
+    \caption{J4-2 接触分析结果 (上：工作面，下：非工作面)}
+\end{figure}
+
+\clearpage
+\subsubsection*{2. J5-3 (7/70)}
+
+\begin{table}[H]
+\centering
+\caption{J5-3 小轮齿面控制参数选择}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{参数} & \textbf{凹面 (外刀)} & \textbf{凸面 (内刀)} \\
+\midrule
+接触区沿齿高方向移动量 $R_K$ & 0 & 0 \\
+接触区沿齿长方向移动量 $X_K$ & 0 & 0 \\
+接触区长度系数 $B_F$ & 0.35 & 0.35 \\
+接触区对角方向角 $\alpha$ & $20^\circ$ & $20^\circ$ \\
+轮副相对运动角加速度 $\varepsilon$ ($E$) & 0.0004 & 0.0004 \\
+三阶机床安装角修正量 $\Delta \gamma_m$ & -2 & -4 \\
+小轮根锥角修正量 $\Delta \delta$ & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{media/5工作.png} \\[1ex]
+    \includegraphics[width=0.6\textwidth]{media/5非工作.png}
+    \caption{J5-3 接触分析结果 (上：工作面，下：非工作面)}
+\end{figure}
+
+\clearpage
+\subsubsection*{3. J6-2 (6/72)}
+
+\begin{table}[H]
+\centering
+\caption{J6-2 小轮齿面控制参数选择}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{参数} & \textbf{凹面 (外刀)} & \textbf{凸面 (内刀)} \\
+\midrule
+接触区沿齿高方向移动量 $R_K$ & 0 & 0 \\
+接触区沿齿长方向移动量 $X_K$ & 0 & 0 \\
+接触区长度系数 $B_F$ & 0.3 & 0.3 \\
+接触区对角方向角 $\alpha$ & $0^\circ$ & $0^\circ$ \\
+轮副相对运动角加速度 $\varepsilon$ ($E$) & 0.0004 & 0.0004 \\
+三阶机床安装角修正量 $\Delta \gamma_m$ & -2 & -4 \\
+小轮根锥角修正量 $\Delta \delta$ & 0 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.6\textwidth]{media/6工作.png} \\[1ex]
+    \includegraphics[width=0.6\textwidth]{media/6非工作.png}
+    \caption{J6-2 接触分析结果 (上：工作面，下：非工作面)}
+\end{figure}
+
+\end{document}
