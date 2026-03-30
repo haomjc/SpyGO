@@ -142,14 +142,31 @@ H.plotToolProfile("gear", "convex")
 # %%
 # if you dont remember the indexing just call
 # dictprint(H.get_machine_settings_names())
-x_index = [0,3,4,5,7,15,24,33,
+x_index = [0,1,2,3,4,5,7,15,24,33,
            72,74,75]
 # x_index = [0,1,2,3,4,5,7,15,
 #            72,73,74,77]
 x_index.sort()
 print(x_index)
 lb, ub = H.compute_identification_bounds('pinion', 'concave', x_index)
-solver, settings = H.buildIdentificationProblem('pinion', 'concave', x_index, lb, ub, zR=None, problem_type= 'ease-off', bound_points_tol=1)
+
+idx_tilt = x_index.index(1) if 1 in x_index else -1
+idx_swiv = x_index.index(2) if 2 in x_index else -1
+
+if idx_tilt != -1:
+    val_tilt = H.designData.pinion_machine_settings.concave.TILTANGLE
+    lb[idx_tilt] = max(lb[idx_tilt], val_tilt - 1.0)
+    ub[idx_tilt] = min(ub[idx_tilt], val_tilt + 1.0)
+if idx_swiv != -1:
+    val_swiv = H.designData.pinion_machine_settings.concave.SWIVELANGLE
+    lb[idx_swiv] = max(lb[idx_swiv], val_swiv - 1.0)
+    ub[idx_swiv] = min(ub[idx_swiv], val_swiv + 1.0)
+
+solver, settings = H.buildIdentificationProblem('pinion', 'concave', x_index, lb, ub, zR=None, problem_type='ease-off', bound_points_tol=1)
+if isinstance(settings, dict):
+    print("SETTINGS KEYS:", list(settings.keys())[:5])
+else:
+    print("SETTINGS IS NOT DICT. TYPE:", type(settings))
 
 
 # %%
@@ -225,13 +242,27 @@ print("="*60)
 # 1. 构建 convex 识别问题 (使用相同的 x_index)
 x_index_cvx = x_index.copy()
 lb_cvx, ub_cvx = H.compute_identification_bounds('pinion', 'convex', x_index_cvx)
+
+# 强制限制 TILTANGLE (1) 和 SWIVELANGLE (2) 防止求解器发生大幅度索引位移跑飞
+idx_tilt = x_index_cvx.index(1) if 1 in x_index_cvx else -1
+idx_swiv = x_index_cvx.index(2) if 2 in x_index_cvx else -1
+
+if idx_tilt != -1:
+    val_tilt = H.designData.pinion_machine_settings.convex.TILTANGLE
+    lb_cvx[idx_tilt] = max(lb_cvx[idx_tilt], val_tilt - 1.0)
+    ub_cvx[idx_tilt] = min(ub_cvx[idx_tilt], val_tilt + 1.0)
+if idx_swiv != -1:
+    val_swiv = H.designData.pinion_machine_settings.convex.SWIVELANGLE
+    lb_cvx[idx_swiv] = max(lb_cvx[idx_swiv], val_swiv - 1.0)
+    ub_cvx[idx_swiv] = min(ub_cvx[idx_swiv], val_swiv + 1.0)
+
 solver_cvx, settings_cvx = H.buildIdentificationProblem(
     'pinion', 'convex', x_index_cvx, lb_cvx, ub_cvx, 
     zR=None, problem_type='ease-off', bound_points_tol=1
 )
 
 # 2. 计算 convex ease-off 目标点
-v5DoF_cvx = np.array([0, 0, 50, 25, 0])/1000 # Convex/Drive side 真正的 baseline 测试
+v5DoF_cvx = np.array([-43, 56, 50, 25, 0])/1000 # Convex/Drive side 用释放后自由度的机床执行计算的最优居中参数
 E_fun_cvx = ease_off_5DoF(v5DoF_cvx)
 
 Z_cvx, R_cvx = H.compute_zr_grid('pinion', 'convex', num_profile, num_face)
