@@ -86,6 +86,14 @@ dictprint(H.get_machine_settings_names())
 # %%
 np.set_printoptions(precision=4)
 
+# ------------------------------------------------------------
+# 方案 B: 宏观参数微调 (Macro-Geometry Adjustment)
+# ------------------------------------------------------------
+print(f"原始小齿轮螺旋角: {H.designData.pinion_common_data.SPIRALANGLE:.2f}")
+H.designData.pinion_common_data.SPIRALANGLE += 10.0  # 增加 10 度以实现跨越式重心移动
+print(f"调整后小齿轮螺旋角: {H.designData.pinion_common_data.SPIRALANGLE:.2f}")
+H.compute_parameters(H.designData) # 关键：宏观几何改变后必须重算系统参数
+
 H.identifyConjugatePinion()
 
 # %% 保存所有齿面数据到 npz 文件
@@ -189,7 +197,7 @@ base_normals = H.identificationProblemEaseOff.pinion.concave['base_normals'].squ
 target_points = base_points - (E.flatten(order = 'F')) * base_normals
 
 EO = np.sum((base_points - target_points) * base_normals, axis = 0)
-plot_ease_off(EO.reshape(Z.shape, order = 'F'), Z, R, aspect_ratio=[1,1,0.010], labels=['z (mm)', 'R (mm)', 'E ($\mu$m)'])
+plot_ease_off(EO.reshape(Z.shape, order = 'F'), Z, R, aspect_ratio=[1,1,0.010], labels=['z (mm)', 'R (mm)', r'E ($\mu$m)'])
 root_points = H.identificationProblemEaseOff.pinion.concave['root_constraint']['points']
 
 target_points = np.concatenate((target_points[0:3,:], root_points[0:3,:]), 1)
@@ -262,7 +270,9 @@ solver_cvx, settings_cvx = H.buildIdentificationProblem(
 )
 
 # 2. 计算 convex ease-off 目标点
-v5DoF_cvx = np.array([-43, 56, 50, 25, 0])/1000 # Convex/Drive side 用释放后自由度的机床执行计算的最优居中参数
+# v5DoF_cvx: [PA, SA, PC, LC, Twist]
+# PA=-200, SA=200: 温和拉动避免失温, PC=120/LC=80: 适度收缩
+v5DoF_cvx = np.array([-200, 200, 120, 80, 0])/1000 
 E_fun_cvx = ease_off_5DoF(v5DoF_cvx)
 
 Z_cvx, R_cvx = H.compute_zr_grid('pinion', 'convex', num_profile, num_face)

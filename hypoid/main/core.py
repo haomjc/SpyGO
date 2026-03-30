@@ -305,27 +305,27 @@ class Hypoid:
         trip_pin_cnv, trip_pin_cvx, trip_gear_cnv, trip_gear_cvx = [], [], [], []
         if not not self.interpTriplets.pinion.concave: # if the initial triplets are not empty
             trip_pin_cnv = [
-                self.interpTriplets.pinion.concave['csi'][PCpin[0], PCpin[1]], 
-                self.interpTriplets.pinion.concave['theta'][PCpin[0], PCpin[1]],
-                self.interpTriplets.pinion.concave['phi'][PCpin[0], PCpin[1]]
+                self.interpTriplets.pinion.concave['csi'](PCpin[0], PCpin[1]), 
+                self.interpTriplets.pinion.concave['theta'](PCpin[0], PCpin[1]),
+                self.interpTriplets.pinion.concave['phi'](PCpin[0], PCpin[1])
             ]
 
             trip_pin_cvx = [
-                self.interpTriplets.pinion.convex['csi'][PCpin[0], PCpin[1]], 
-                self.interpTriplets.pinion.convex['theta'][PCpin[0], PCpin[1]],
-                self.interpTriplets.pinion.convex['phi'][PCpin[0], PCpin[1]]
+                self.interpTriplets.pinion.convex['csi'](PCpin[0], PCpin[1]), 
+                self.interpTriplets.pinion.convex['theta'](PCpin[0], PCpin[1]),
+                self.interpTriplets.pinion.convex['phi'](PCpin[0], PCpin[1])
             ]
 
             trip_gear_cnv = [
-                self.interpTriplets.gear.concave['csi'][PCgear[0], PCgear[1]], 
-                self.interpTriplets.gear.concave['theta'][PCgear[0], PCgear[1]],
-                self.interpTriplets.gear.concave['phi'][PCgear[0], PCgear[1]]
+                self.interpTriplets.gear.concave['csi'](PCgear[0], PCgear[1]), 
+                self.interpTriplets.gear.concave['theta'](PCgear[0], PCgear[1]),
+                self.interpTriplets.gear.concave['phi'](PCgear[0], PCgear[1])
             ]
 
             trip_gear_cvx = [
-                self.interpTriplets.gear.convex['csi'][PCgear[0], PCgear[1]], 
-                self.interpTriplets.gear.convex['theta'][PCgear[0], PCgear[1]],
-                self.interpTriplets.gear.convex['phi'][PCgear[0], PCgear[1]]
+                self.interpTriplets.gear.convex['csi'](PCgear[0], PCgear[1]), 
+                self.interpTriplets.gear.convex['theta'](PCgear[0], PCgear[1]),
+                self.interpTriplets.gear.convex['phi'](PCgear[0], PCgear[1])
             ]
 
         # Sampling surfaces and interpolating
