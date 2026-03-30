@@ -169,9 +169,9 @@ Z, R = H.compute_zr_grid('pinion', 'concave', 11, 22)
 
 base_points = H.identificationProblemEaseOff.pinion.concave['base_points'].squeeze()
 base_normals = H.identificationProblemEaseOff.pinion.concave['base_normals'].squeeze()
-target_points = base_points + (E.flatten(order = 'F')) * base_normals
+target_points = base_points - (E.flatten(order = 'F')) * base_normals
 
-EO = np.sum((target_points - base_points) * base_normals, axis = 0)
+EO = np.sum((base_points - target_points) * base_normals, axis = 0)
 plot_ease_off(EO.reshape(Z.shape, order = 'F'), Z, R, aspect_ratio=[1,1,0.010], labels=['z (mm)', 'R (mm)', 'E ($\mu$m)'])
 root_points = H.identificationProblemEaseOff.pinion.concave['root_constraint']['points']
 
@@ -240,10 +240,10 @@ E_cvx = E_fun_cvx(U_cvx, V_cvx)
 
 base_points_cvx = H.identificationProblemEaseOff.pinion.convex['base_points'].squeeze()
 base_normals_cvx = H.identificationProblemEaseOff.pinion.convex['base_normals'].squeeze()
-target_points_cvx = base_points_cvx + (E_cvx.flatten(order='F')) * base_normals_cvx
+target_points_cvx = base_points_cvx - (E_cvx.flatten(order='F')) * base_normals_cvx
 
 # 可视化 convex ease-off
-EO_cvx = np.sum((target_points_cvx - base_points_cvx) * base_normals_cvx, axis=0)
+EO_cvx = np.sum((base_points_cvx - target_points_cvx) * base_normals_cvx, axis=0)
 plot_ease_off(EO_cvx.reshape(Z_cvx.shape, order='F'), Z_cvx, R_cvx, 
               aspect_ratio=[1,1,0.010], labels=['z (mm)', 'R (mm)', 'E ($\\mu$m)'])
 

@@ -178,17 +178,17 @@ if n_contact > 0:
     R_pct = (R_cent - R_min_t) / (R_max_t - R_min_t) * 100 if (R_max_t - R_min_t) > 1e-6 else 50
     Z_pct = (Z_cent - Z_min_t) / (Z_max_t - Z_min_t) * 100 if (Z_max_t - Z_min_t) > 1e-6 else 50
     
-    log(f"\n齿面范围 R(齿高): [{R_min_t:.3f}, {R_max_t:.3f}] mm")
-    log(f"齿面范围 Z(齿宽): [{Z_min_t:.3f}, {Z_max_t:.3f}] mm")
-    log(f"接触质心 R={R_cent:.3f} mm -> 齿高位置: {R_pct:.1f}% (0%=齿根, 100%=齿顶)")
-    log(f"接触质心 Z={Z_cent:.3f} mm -> 齿宽位置: {Z_pct:.1f}% (0%=小端toe, 100%=大端heel)")
+    log(f"\n齿面范围 R(齿宽): [{R_min_t:.3f}, {R_max_t:.3f}] mm")
+    log(f"齿面范围 Z(齿高): [{Z_min_t:.3f}, {Z_max_t:.3f}] mm")
+    log(f"接触质心 R={R_cent:.3f} mm -> 齿宽位置: {R_pct:.1f}% (0%=小端toe, 100%=大端heel)")
+    log(f"接触质心 Z={Z_cent:.3f} mm -> 齿高位置: {Z_pct:.1f}% (0%=齿根, 100%=齿顶)")
 
     
-    if R_pct < 30: pp = "偏齿根"
-    elif R_pct > 70: pp = "偏齿顶"
+    if Z_pct < 30: pp = "偏齿根"
+    elif Z_pct > 70: pp = "偏齿顶"
     else: pp = "居中 OK"
-    if Z_pct < 30: pf = "偏小端(toe)"
-    elif Z_pct > 70: pf = "偏大端(heel)"
+    if R_pct < 30: pf = "偏小端(toe)"
+    elif R_pct > 70: pf = "偏大端(heel)"
     else: pf = "居中 OK"
 
     

@@ -725,10 +725,10 @@ if __name__ == '__main__':
                 else:
                     Z_pct = 50.0
                 
-                print(f"\n  齿面范围 R(齿高): [{R_min_tooth:.3f}, {R_max_tooth:.3f}] mm")
-                print(f"  齿面范围 Z(齿宽): [{Z_min_tooth:.3f}, {Z_max_tooth:.3f}] mm")
-                print(f"  接触质心 R={R_centroid:.3f} mm → 齿高位置: {R_pct:.1f}% (0%=齿根, 100%=齿顶)")
-                print(f"  接触质心 Z={Z_centroid:.3f} mm → 齿宽位置: {Z_pct:.1f}% (0%=小端toe, 100%=大端heel)")
+                print(f"\n  齿面范围 R(齿宽): [{R_min_tooth:.3f}, {R_max_tooth:.3f}] mm")
+                print(f"  齿面范围 Z(齿高): [{Z_min_tooth:.3f}, {Z_max_tooth:.3f}] mm")
+                print(f"  接触质心 R={R_centroid:.3f} mm → 齿宽位置: {R_pct:.1f}% (0%=小端toe, 100%=大端heel)")
+                print(f"  接触质心 Z={Z_centroid:.3f} mm → 齿高位置: {Z_pct:.1f}% (0%=齿根, 100%=齿顶)")
                 
                 # 判断接触位置
                 if Z_pct < 30:
