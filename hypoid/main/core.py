@@ -181,13 +181,13 @@ class Hypoid:
             data = self.designData
             points, normals, triplets = rz_sampling_casadi(R, z, data, member, flank, triplets)
         elif data_type.lower() in ['easeoff', 'ease_off']:
-            data = self.identificationProblemEaseOff.design_data
+            data = self.identificationProblemEaseOff.designData
             points, normals, triplets = rz_sampling_casadi(R, z, data, member, flank, triplets)
         elif data_type.lower() in ['conjugate', 'conj']:
-            data = self.identificationProblemConjugate.design_data
+            data = self.identificationProblemConjugate.designData
             points, normals, triplets = rz_sampling_casadi(R, z, data, member, flank, triplets)
         elif data_type.lower() in ['opti', 'optimization']:
-            data = self.identificationProblemOptimization.design_data
+            data = self.identificationProblemOptimization.designData
             points, normals, triplets = rz_sampling_casadi(R, z, data, member, flank, triplets)
         elif data_type.lower() in ['nurbs']:
             points, normals, UV = rz_sampling_NURBS_casadi(R, z, data, member, flank, triplets)

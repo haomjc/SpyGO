@@ -1,0 +1,78 @@
+\documentclass[UTF8]{ctexart}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hypernat}
+\usepackage[colorlinks,linkcolor=blue]{hyperref}
+\usepackage{geometry}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+
+\geometry{a4paper, left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+
+\title{准双曲面齿轮接触分析技术文档}
+\author{Hypoid Contact Analysis Module}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{引言}
+本文档详细阐述准双曲面齿轮从设计参数定义、齿面数学建模、微观拓扑修形到最终接触仿真分析的完整技术实现逻辑。系统基于微分几何与螺量理论构建，结合现代数值优化算法，能够精确模拟齿轮在存在安装误差条件下的啮合行为与接触斑点分布。
+
+\section{三维齿面生成}
+齿面生成模块是整个分析流程的基础，由 \texttt{hypoid\_test.py} 脚本驱动，核心逻辑依赖于 \texttt{hypoid} 软件包中的 \texttt{Hypoid} 类及 \texttt{geometry} 几何计算模块。
+
+\subsection{理论齿面建模}
+齿面建模始于宏观几何参数的定义。在 \texttt{Hypoid} 类初始化阶段，程序首先接收包括偏置距、旋向、切齿方法（成形法或展成法）在内的系统参数，以及齿数、大端模数、轴交角、面锥角、根锥角等基本锥参数。此外，还需设定压力角、刀盘半径等刀具相关的详细设计数据。
+
+基于 AGMA 标准，系统首先反求出初始的机床调整参数与刀具参数。随后，核心函数 \texttt{tooth\_sampling\_casadi} 利用 CasADi 符号计算库建立并求解包络方程。该过程构建了机床运动学矩阵 $G(\phi)$ 与刀具曲面方程 $P_{tool}(u, \theta)$，通过联立啮合方程 $n \cdot v = 0$ 与几何约束条件，精确求解出理论齿面的点云坐标 $P_{gear}$。
+
+\subsection{共轭齿面求解}
+为了获得用于修形基准的理论完全共轭齿面，程序采用了基于螺量理论的 \texttt{compute\_conjugate\_points\_to\_gear} 方法。该方法首先定义大轮到小轮的相对运动旋量 $\xi_{pg}$。针对大轮齿面上的每一个离散点，程序通过求解非线性方程组，在数值上精确寻找小轮齿面上满足啮合条件的对应共轭点。这为后续的修形设计提供了理想的几何参考。
+
+\subsection{拓扑修形}
+为了改善实际工况下的接触性能，避免边缘接触并降低传动误差，系统在理论共轭齿面上叠加了微观修形量。修形函数由 \texttt{ease\_off.py} 模块定义，采用了一套包含五项几何特征的 5-DOF 模型。该模型通过多项式组合，$E(u, v) = C_{PA} v + C_{SA} u + C_{PC} v^2 + C_{LC} u^2 + C_{TW} uv$，依次实现了齿廓倾斜、齿长倾斜、齿廓鼓形、齿长鼓形以及对角修形。最终的目标齿面是通过将这些修形量沿法向叠加到共轭齿面上得到的。
+
+\subsection{数据离散化与保存}
+计算生成的最终齿面数据，涵盖了齿面点云、法向量、边界点及根部线等关键信息，被统一封装并保存为 \texttt{.npz} 格式文件。为了确保接触分析模块的独立性与可重复性，文件中还同步保存了关键的 EPG 装配误差参数。
+
+\section{装配与坐标变换}
+接触分析模块 \texttt{hypoid\_contact.py} 独立运行于生成模块之外。它通过加载预先生成的齿面数据，并利用坐标变换技术来模拟齿轮副在实际空间中的装配状态。
+
+\subsection{坐标变换链}
+小齿轮相对于大齿轮的空间位置由变换矩阵 $T_{pg}$ 描述。该矩阵综合考虑了理想的几何设计关系以及实际的安装误差（即 EPG 误差），包括垂直偏置误差、小齿轮轴向误差、大齿轮轴向误差以及轴交角误差。变换函数 \texttt{get\_pinion\_transform} 构建了一条完整的运动学链：$T_{pg} = T_{shift\_G} \cdot T_{rot\_Y}(\Sigma + \alpha) \cdot T_{shift\_offset\_adj} \cdot T_{shift\_P}$。该变换确保小齿轮的所有几何元素都能被精确地映射到固定的大齿轮坐标系中，从而进行后续的干涉检查。
+
+\section{最佳啮合齿对搜索}
+鉴于全齿轮模型通常包含数十个轮齿，直接对整体模型进行接触搜索将导致巨大的计算开销。为此，程序实现了一种高效的启发式搜索策略。程序首先遍历小齿轮所有轮齿的几何中心，将其变换至大齿轮坐标系下，并识别出 $Z$ 坐标最大、即最深入啮合区域的轮齿作为小轮的最佳候选齿。随后，程序遍历大齿轮的所有轮齿，寻找与该小轮候选齿空间距离最近的齿作为大轮的最佳匹配齿。这一对“最佳匹配齿”确立了接触分析的初始对齐状态，后续的高精度计算均围绕这一对齿及其相邻区域展开。
+
+\section{齿面拟合与网格细化}
+为了满足微米级接触分析的精度要求，原始生成的稀疏网格（如 $9 \times 9$）往往不够精细。程序引入了基于 B 样条的曲面重采样技术。利用 \texttt{scipy.interpolate.RectBivariateSpline} 库，程序分别为齿面的 $X, Y, Z$ 坐标构建双三次插值函数。这不仅允许在参数域上进行高密度的重采样（通常细化 4 倍以上），还能通过解析求导获得连续且光滑的法向量场。高质量的法向量场对于准确判断接触状态及接触方向至关重要。
+
+\section{接触斑点搜索}
+接触斑点的计算本质上是在单参数运动族曲面中寻找最小距离包络的问题。核心算法集成在 \texttt{contact\_physics.py} 模块中，采用两阶段优化策略来确定接触位置。
+
+\subsection{距离函数与有效性检查}
+程序定义了核心的距离计算函数 \texttt{compute\_gap\_with\_validity}。对于大齿轮上的任意一点，该函数通过点-三角形投影算法计算其到变换后小齿轮表面的最近欧氏距离，即“间隙”。为了排除非物理的背面穿透，函数还引入了法向一致性检查：只有当大轮法向与小轮法向的点积小于零（即呈“面对面”状态）时，该点才被标记为有效的潜在接触点。
+
+\subsection{两阶段优化策略}
+为了精确捕捉两齿面接触的瞬间，程序实施了由粗到精的搜索策略。第一阶段为粗搜索，小齿轮在 $\pm 12^\circ$ 的范围内以较大步长进行旋转扫描，记录每个角度下全场的最小间隙值，从而快速锁定间隙符号发生翻转（即从分离转为接触）的角度区间。第二阶段为精细求根，在锁定的微小区间内，利用 Brent 数值优化算法求解最小间隙为零的精确转角。这一步骤能够以极高的数值精度确定理论接触点。
+
+\subsection{接触斑生成}
+在确定了最佳接触转角后，程序将小齿轮固定于该位置，并计算大齿轮全齿面上所有网格点的最终间隙分布。依据设定的物理阈值（例如 25 微米），所有间隙小于该阈值的有效点集即构成了接触斑。最后，利用 \texttt{PyVista} 可视化库，将这些接触点在三维模型上渲染为高亮的红色区域，直观地展示出齿轮副的接触形态与位置。
+
+\section{接触斑图像}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{contact_pattern.png}
+    \caption{接触斑点分布示意图}
+    \label{fig:contact_pattern}
+\end{figure}
+
+\end{document}
+

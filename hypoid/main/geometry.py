@@ -572,22 +572,138 @@ def pinion_conjugate_to_gear(data: DesignData, flank, zRgear, EPGalpha, triplets
         nG_sym - nG_expr[0:3]
     )
 
-    # define the rootfinder problem
+    # define the rootfinder problem with improved settings
     problem = {'x': ca.vertcat(csi, theta, phi, psi, pG_sym, nG_sym), 'p': ca.vertcat(R_sym, z_sym), 'g': equations}
-    solver = ca.rootfinder('solver', 'newton', problem, {'error_on_fail': False})
-    
+    solver = ca.rootfinder('solver', 'newton', problem, {
+        'error_on_fail': False,
+        'abstol': 1e-10,
+        'max_iter': 200
+    })
+
+    # 添加 IPOPT 求解器作为备选（当牛顿法失败时使用）
+    options_ipopt = {'ipopt': {
+        'print_level': 0,
+        'max_iter': 500,
+        'tol': 1e-8,
+        'acceptable_tol': 1e-6,
+        'warm_start_init_point': 'yes'
+    }, 'print_time': False}
+    problem_ipopt = {'x': ca.vertcat(csi, theta, phi, psi, pG_sym, nG_sym), 
+                     'p': ca.vertcat(R_sym, z_sym), 
+                     'f': 0.5 * equations.T @ equations}
+    solver_ipopt = ca.nlpsol('solver_ipopt', 'ipopt', problem_ipopt, options_ipopt)
+
     phi_P0 = 0
     triplets_gear[0, :] = triplets_gear[0, :] + 0.05
+
+    # 扩大扫描范围以提高收敛性
+    scan_range_csi = np.linspace(-0.5, 0.5, 15)  # csi 扫描范围
+    scan_range_psi = np.linspace(-0.2, 0.2, 5)   # psi 扫描范围
+
+    def try_solve_with_ipopt(x0_init, p_val):
+        """使用 IPOPT 求解器作为备选"""
+        try:
+            sol_ipopt = solver_ipopt(x0=x0_init, p=p_val)
+            if solver_ipopt.stats()['success']:
+                return sol_ipopt, True
+        except:
+            pass
+        return None, False
+
     for ii in range(num_points):
         if ii > 0:
+            # 使用前一个点的 psi 作为初始猜测
             psi_G[ii] = psi_G[ii-1]
+            # 使用前一个点的 csithetaphi 作为初始猜测（提高收敛率）
+            x0_prev = np.vstack([
+                csithetaphi[:, ii-1].reshape(-1, 1, order='F'),
+                psi_G[ii].reshape(-1, 1, order='F'),
+                gear_points[:, ii-1].reshape(-1, 1, order='F'),
+                gear_normals[:, ii-1].reshape(-1, 1, order='F')
+            ])
+            x0 = x0_prev
+        else:
+            # 第一个点：尝试多个初始 guess（扩大搜索范围）
+            x0 = None
+            found = False
+            for delta_csi in scan_range_csi:
+                for delta_psi in scan_range_psi:
+                    x0_try = np.vstack([
+                        (triplets_gear[0, ii] + delta_csi).reshape(-1, 1, order='F'),
+                        triplets_gear[1, ii].reshape(-1, 1, order='F'),
+                        triplets_gear[2, ii].reshape(-1, 1, order='F'),
+                        (psi_G[ii] + delta_psi).reshape(-1, 1, order='F'),
+                        pg_num[0:3, ii].reshape(-1, 1, order='F'),
+                        ng_num[0:3, ii].reshape(-1, 1, order='F')
+                    ])
+                    p = np.array([R[ii], z[ii]]).reshape(-1, 1, order='F')
+                    sol = solver(x0=x0_try, p=p)
+                    if solver.stats()['success']:
+                        x0 = x0_try
+                        found = True
+                        break
+                if found:
+                    break
 
-        x0 = np.vstack([triplets_gear[:, ii].reshape(-1, 1, order = 'F'), psi_G[ii].reshape(-1, 1, order = 'F'), pg_num[0:3, ii].reshape(-1, 1, order = 'F'), ng_num[0:3, ii].reshape(-1, 1, order = 'F')])
+            # 如果牛顿法扫描失败，尝试 IPOPT
+            if x0 is None:
+                x0_default = np.vstack([triplets_gear[:, ii].reshape(-1, 1, order = 'F'), 
+                                       psi_G[ii].reshape(-1, 1, order = 'F'), 
+                                       pg_num[0:3, ii].reshape(-1, 1, order = 'F'), 
+                                       ng_num[0:3, ii].reshape(-1, 1, order = 'F')])
+                p = np.array([R[ii], z[ii]]).reshape(-1, 1, order='F')
+                sol, ipopt_success = try_solve_with_ipopt(x0_default, p)
+                if ipopt_success:
+                    x0 = x0_default
+                else:
+                    x0 = x0_default  # 使用默认值继续尝试
+
         p = np.array([R[ii], z[ii]]).reshape(-1, 1, order = 'F')
         sol = solver(x0=x0, p=p)
 
         if solver.stats()['success'] == False:
-            raise Exception(f'Solver did not converge at point number {ii}')
+            # 如果使用前一个点作为初始猜测失败，尝试使用原始初始猜测
+            if ii > 0:
+                x0_fallback = np.vstack([triplets_gear[:, ii].reshape(-1, 1, order = 'F'), psi_G[ii].reshape(-1, 1, order = 'F'), pg_num[0:3, ii].reshape(-1, 1, order = 'F'), ng_num[0:3, ii].reshape(-1, 1, order = 'F')])
+                sol = solver(x0=x0_fallback, p=p)
+                if solver.stats()['success'] == False:
+                    # 尝试扫描
+                    found = False
+                    for delta_csi in scan_range_csi:
+                        x0_try = np.vstack([
+                            (triplets_gear[0, ii] + delta_csi).reshape(-1, 1, order='F'),
+                            triplets_gear[1, ii].reshape(-1, 1, order='F'),
+                            triplets_gear[2, ii].reshape(-1, 1, order='F'),
+                            psi_G[ii].reshape(-1, 1, order='F'),
+                            pg_num[0:3, ii].reshape(-1, 1, order='F'),
+                            ng_num[0:3, ii].reshape(-1, 1, order='F')
+                        ])
+                        sol = solver(x0=x0_try, p=p)
+                        if solver.stats()['success']:
+                            found = True
+                            break
+                    
+                    # 如果牛顿法还是失败，尝试 IPOPT
+                    if not found:
+                        sol, ipopt_success = try_solve_with_ipopt(x0_fallback, p)
+                        if not ipopt_success:
+                            print(f'Warning: Using IPOPT fallback for point {ii}')
+                            # 最后尝试：用更宽松的边界运行 IPOPT
+                            try:
+                                sol = solver_ipopt(x0=x0_fallback, p=p)
+                                if not solver_ipopt.stats()['success']:
+                                    raise Exception(f'Solver did not converge at point number {ii}')
+                            except:
+                                raise Exception(f'Solver did not converge at point number {ii}')
+            else:
+                # 第一个点失败时，使用 IPOPT 作为最后手段
+                x0_default = np.vstack([triplets_gear[:, ii].reshape(-1, 1, order = 'F'), 
+                                       psi_G[ii].reshape(-1, 1, order = 'F'), 
+                                       pg_num[0:3, ii].reshape(-1, 1, order = 'F'), 
+                                       ng_num[0:3, ii].reshape(-1, 1, order = 'F')])
+                sol, ipopt_success = try_solve_with_ipopt(x0_default, p)
+                if not ipopt_success:
+                    raise Exception(f'Solver did not converge at point number {ii}')
         
         res = sol['x'].full()
         csithetaphi[:, ii] = res[0:3].flatten(order = 'F')
@@ -664,7 +780,7 @@ def shaft_segment_computation(data:DesignData):
                      (O_g - Fw_g) * np.sin(np.deg2rad(gamma_g))])  # [z, R]
     
     tangent_front = np.tan(np.deg2rad(90 - frontA_g))
-    tangent_back = np.tan(np.deg2rad(90 - frontA_g))
+    tangent_back = np.tan(np.deg2rad(90 - backA_g))
 
     zB_g = (-np.tan(np.deg2rad(gammab_g)) * bA_g + PB_g[1] + tangent_back * PB_g[0]) / \
             (np.tan(np.deg2rad(gammab_g)) + tangent_back)

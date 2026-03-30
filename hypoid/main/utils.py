@@ -1,7 +1,7 @@
 import numpy as np
 import casadi as ca
 from casadi.casadi import exp
-from scipy.optimize import fsolve
+from scipy.optimize import fsolve, root
 from scipy.sparse import lil_matrix, bmat
 from math import sqrt, pi, atan, cos, sin, acos, asin, tan
 
@@ -196,24 +196,27 @@ def rz_to_grid(zstar, Rstar, zRBounds, method = 1):
         N3_dv = lambda u, v: +u
         N4_dv = lambda u, v: (1 - u)
 
-    r, c = np.shape(np.atleast_1d(zstar))
+    r_o, c_o = zstar.shape
+    zstar = zstar.reshape(-1,  1, order = 'F')
+    Rstar = Rstar.reshape(-1,  1, order = 'F')
+    r, c = np.shape(zstar)
 
     def obj(x, output = 'fun'):
-        u_val = x[:len(x) // 2]
-        v_val = x[len(x) // 2:]
+        u_val = x[:len(x) // 2].reshape(-1, 1)
+        v_val = x[len(x) // 2:].reshape(-1, 1)
 
         N1_ev = N1(u_val, v_val)
         N2_ev = N2(u_val, v_val)
         N3_ev = N3(u_val, v_val)
         N4_ev = N4(u_val, v_val)
 
-        fun = np.concatenate([
-            N1_ev * z1 + N2_ev * z2 + N3_ev * z3 + N4_ev * z4 - zstar.flatten(order = 'F'),
-            N1_ev * R1 + N2_ev * R2 + N3_ev * R3 + N4_ev * R4 - Rstar.flatten(order = 'F')
+        fun = np.vstack([
+            N1_ev * z1 + N2_ev * z2 + N3_ev * z3 + N4_ev * z4 - zstar,
+            N1_ev * R1 + N2_ev * R2 + N3_ev * R3 + N4_ev * R4 - Rstar
         ])
 
         if output.lower() == 'fun':
-            return fun
+            return fun.flatten()
         
         N1_du_ev = N1_du(u_val, v_val)
         N2_du_ev = N2_du(u_val, v_val)
@@ -225,12 +228,12 @@ def rz_to_grid(zstar, Rstar, zRBounds, method = 1):
         N3_dv_ev = N3_dv(u_val, v_val)
         N4_dv_ev = N4_dv(u_val, v_val)
         
-        derU = np.concatenate([
+        derU = np.vstack([
             N1_du_ev * z1 + N2_du_ev * z2 + N3_du_ev * z3 + N4_du_ev * z4,
             N1_du_ev * R1 + N2_du_ev * R2 + N3_du_ev * R3 + N4_du_ev * R4
         ])
 
-        derV = np.concatenate([
+        derV = np.vstack([
             N1_dv_ev * z1 + N2_dv_ev * z2 + N3_dv_ev * z3 + N4_dv_ev * z4,
             N1_dv_ev * R1 + N2_dv_ev * R2 + N3_dv_ev * R3 + N4_dv_ev * R4
         ])
@@ -247,17 +250,99 @@ def rz_to_grid(zstar, Rstar, zRBounds, method = 1):
 
         Jac = bmat([[block1, block3], [block2, block4]])
 
-        return Jac
+        return Jac.toarray()
 
     # Initial guess
-    guessU = np.zeros(r)
-    guessV = np.zeros(r)
+    guessU = np.zeros((r, 1))
+    guessV = np.zeros((r, 1))
 
-    sol = fsolve(lambda x: obj(x, output='fun'), np.concatenate([guessU, guessV]), xtol=1e-8, fprime=lambda x: obj(x, output = 'jac'))
+    # sol = root(lambda x: obj(x, 'fun'),
+    #         np.vstack([guessU, guessV]),
+    #         jac=lambda x: obj(x, 'jac'),
+    #         method='krylov', tol=1e-8)
+    sol = fsolve(lambda x: obj(x, 'fun'),
+            np.vstack([guessU, guessV]),
+            fprime=lambda x: obj(x, 'jac'))
+    u = np.array(sol[:len(sol) // 2]).reshape(r_o, c_o)
+    v = np.array(sol[len(sol) // 2:]).reshape(r_o, c_o)
 
-    u = sol[:len(sol) // 2]
-    v = sol[len(sol) // 2:]
+    return u, v
 
+def rz_to_grid_loop(zstar, Rstar, zRBounds, method=1):
+    """
+    Maps given z and R coordinates to a reference (u,v) grid using shape functions.
+    Each (z*,R*) pair is solved independently with fsolve, including analytic Jacobian.
+    """
+
+    R1, R2, R3, R4 = zRBounds[:, 1]
+    z1, z2, z3, z4 = zRBounds[:, 0]
+
+    # --- Shape functions and derivatives ---
+    if method == 1:
+        N1  = lambda u,v: 0.25*(1 - v)*(1 - u)
+        N2  = lambda u,v: 0.25*(1 - v)*(1 + u)
+        N3  = lambda u,v: 0.25*(1 + v)*(1 + u)
+        N4  = lambda u,v: 0.25*(1 + v)*(1 - u)
+
+        N1_du = lambda u,v: -0.25*(1 - v)
+        N2_du = lambda u,v:  0.25*(1 - v)
+        N3_du = lambda u,v:  0.25*(1 + v)
+        N4_du = lambda u,v: -0.25*(1 + v)
+
+        N1_dv = lambda u,v: -0.25*(1 - u)
+        N2_dv = lambda u,v: -0.25*(1 + u)
+        N3_dv = lambda u,v:  0.25*(1 + u)
+        N4_dv = lambda u,v:  0.25*(1 - u)
+    else:
+        N1  = lambda u,v: (v - 1)*(u - 1)
+        N2  = lambda u,v: u*(1 - v)
+        N3  = lambda u,v: u*v
+        N4  = lambda u,v: v*(1 - u)
+
+        N1_du = lambda u,v: (v - 1)
+        N2_du = lambda u,v: (1 - v)
+        N3_du = lambda u,v:  v
+        N4_du = lambda u,v: -v
+
+        N1_dv = lambda u,v: (u - 1)
+        N2_dv = lambda u,v: -u
+        N3_dv = lambda u,v:  u
+        N4_dv = lambda u,v: (1 - u)
+
+    # --- Prepare arrays ---
+    r_o, c_o = zstar.shape
+    zflat = zstar.reshape(-1, order='F')
+    Rflat = Rstar.reshape(-1, order='F')
+    u_vals = np.zeros_like(zflat)
+    v_vals = np.zeros_like(Rflat)
+
+    # --- Nonlinear system and Jacobian for one point ---
+    def equations(x, zt, Rt):
+        u, v = x
+        z_m = N1(u,v)*z1 + N2(u,v)*z2 + N3(u,v)*z3 + N4(u,v)*z4
+        R_m = N1(u,v)*R1 + N2(u,v)*R2 + N3(u,v)*R3 + N4(u,v)*R4
+        return [z_m - zt, R_m - Rt]
+
+    def jacobian(x, zt, Rt):
+        u, v = x
+        dz_du = N1_du(u,v)*z1 + N2_du(u,v)*z2 + N3_du(u,v)*z3 + N4_du(u,v)*z4
+        dz_dv = N1_dv(u,v)*z1 + N2_dv(u,v)*z2 + N3_dv(u,v)*z3 + N4_dv(u,v)*z4
+        dR_du = N1_du(u,v)*R1 + N2_du(u,v)*R2 + N3_du(u,v)*R3 + N4_du(u,v)*R4
+        dR_dv = N1_dv(u,v)*R1 + N2_dv(u,v)*R2 + N3_dv(u,v)*R3 + N4_dv(u,v)*R4
+        return np.array([[dz_du, dz_dv],
+                         [dR_du, dR_dv]])
+
+    # --- Solve each point ---
+    for i, (zt, Rt) in enumerate(zip(zflat, Rflat)):
+        sol = fsolve(equations, x0=[0,0],
+                     args=(zt, Rt),
+                     fprime=jacobian,
+                     xtol=1e-10, maxfev=200)
+        u_vals[i], v_vals[i] = sol
+
+    # --- Reshape back to grids ---
+    u = u_vals.reshape(r_o, c_o, order='F')
+    v = v_vals.reshape(r_o, c_o, order='F')
     return u, v
 
 def grid_to_rz(u, v, zR_bounds, method = 1):
@@ -280,6 +365,76 @@ def grid_to_rz(u, v, zR_bounds, method = 1):
     R = N1 * R1 + N2 * R2 + N3 * R3 + N4 * R4
 
     return z, R
+
+def extend_rz_tip(zR_bounds, extend_coeff = 0.3):
+
+    zR_root_toe = zR_bounds[0,:]
+    zR_root_heel = zR_bounds[1,:]
+    zR_tip_heel = zR_bounds[2,:]
+    zR_tip_toe = zR_bounds[3,:]
+
+    zR_bounds[2,:] = zR_tip_heel + extend_coeff*(zR_tip_heel - zR_root_heel)
+    zR_bounds[3,:] = zR_tip_toe + extend_coeff*(zR_tip_toe - zR_root_toe)
+
+    return zR_bounds
+
+def extend_rz_toe(zR_bounds, extend_coeff = 0.15):
+
+    zR_root_toe = zR_bounds[0,:]
+    zR_root_heel = zR_bounds[1,:]
+    zR_tip_heel = zR_bounds[2,:]
+    zR_tip_toe = zR_bounds[3,:]
+
+    zR_bounds[0,:] = zR_root_toe - extend_coeff*(zR_root_heel - zR_root_toe)
+    zR_bounds[3,:] = zR_tip_toe - extend_coeff*(zR_tip_heel - zR_tip_toe)
+
+    return zR_bounds
+
+def extend_rz_heel(zR_bounds, extend_coeff = 0.15):
+
+    zR_root_toe = zR_bounds[0,:]
+    zR_root_heel = zR_bounds[1,:]
+    zR_tip_heel = zR_bounds[2,:]
+    zR_tip_toe = zR_bounds[3,:]
+
+    zR_bounds[1,:] = zR_root_heel + extend_coeff*(zR_root_heel - zR_root_toe)
+    zR_bounds[2,:] = zR_tip_heel + extend_coeff*(zR_tip_heel - zR_tip_toe)
+
+    return zR_bounds
+
+def reduce_rz_root(zR_bounds, extend_coeff = 0.021):
+
+    zR_root_toe = zR_bounds[0,:]
+    zR_root_heel = zR_bounds[1,:]
+    zR_tip_heel = zR_bounds[2,:]
+    zR_tip_toe = zR_bounds[3,:]
+
+    zR_bounds[0,:] = zR_root_toe + extend_coeff*(zR_tip_toe - zR_root_toe)
+    zR_bounds[1,:] = zR_root_heel + extend_coeff*(zR_tip_heel - zR_root_heel)
+
+    return zR_bounds
+
+def generate_rz_grid(zR_bounds, n_prof = 11, n_face = 22, extend_tip = False, extend_toe = False, extend_heel = False, shrink_root = False):
+
+    if extend_tip:
+        zR_bounds = extend_rz_tip(zR_bounds)
+    
+    if extend_toe:
+        zR_bounds = extend_rz_toe(zR_bounds)
+
+    if extend_heel:
+        zR_bounds = extend_rz_heel(zR_bounds)
+
+    if shrink_root:
+        zR_bounds = reduce_rz_root(zR_bounds)
+
+    u = np.linspace(-1, 1, n_prof)
+    v = np.linspace(-1, 1, n_face)
+
+    U, V = np.meshgrid(u, v, indexing='ij')
+
+    z, R = grid_to_rz(U, V, zR_bounds)
+    return z, R, U, V
 
 def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method = 1, rc0 = None, GearGenType = "Generated", gearTilt = 0) -> DesignData:
     
@@ -304,8 +459,24 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     alphadD = toothInitialData["alphaD"]*pi/180     # nominal design pressure angle drive side
     alphadC =  toothInitialData["alphaC"]*pi/180    # nominal design pressure angle coast side
     falphalim =  toothInitialData["falphalim"]      # influence factor of limit pressure angle
-    khap = toothInitialData["khap"]                 # addendum factor
-    khfp = toothInitialData["khfp"]                 # dedendum factor
+    # 支持分别设置小轮和大轮的齿顶高系数
+    if "khap1" in toothInitialData and "khap2" in toothInitialData:
+        khap1 = toothInitialData["khap1"]           # pinion addendum factor
+        khap2 = toothInitialData["khap2"]           # gear addendum factor
+        khap = (khap1 + khap2) / 2                   # average for compatibility
+    else:
+        khap = toothInitialData["khap"]             # addendum factor (unified)
+        khap1 = khap
+        khap2 = khap
+    # 支持分别设置小轮和大轮的齿根高系数
+    if "khfp1" in toothInitialData and "khfp2" in toothInitialData:
+        khfp1 = toothInitialData["khfp1"]           # pinion dedendum factor
+        khfp2 = toothInitialData["khfp2"]           # gear dedendum factor
+        khfp = (khfp1 + khfp2) / 2                   # average for compatibility
+    else:
+        khfp = toothInitialData["khfp"]             # dedendum factor (unified)
+        khfp1 = khfp
+        khfp2 = khfp
     xhm1 = toothInitialData["xhm1"]                 # profile shift coefficient
     jen  = toothInitialData["jen"]                  # outer normal backlash
     xsmn = toothInitialData["xsmn"]                 # thickness modification coefficient
@@ -327,7 +498,7 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
         DeltaSIGMA = SIGMA - pi/2
         deltaint2 = atan(u*cos(DeltaSIGMA)/2/(1-u*sin(DeltaSIGMA)))
         rmpt2 = (de2 - b2*sin(deltaint2))/2
-        epsiprime = asin(a*sin(deltaint2)/rmpt2)
+        epsiprime = asin(a/rmpt2)  # ISO 23509:2016 公式 (15): sin(ε'_i) = a / r_mpt2
         K1 = tan(betaDelta1)*sin(epsiprime) + cos(epsiprime)
         rmn1 = rmpt2*K1/u
         ni0 = atan(a/(rmpt2*(tan(deltaint2)*cos(DeltaSIGMA) - sin(DeltaSIGMA)) + rmn1)) 
@@ -345,7 +516,7 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
         # increment in hypoid dimension factor
         deltaK = lambda ni: sin(eps2prime(ni))*( tan(betaDelta1) - tan(betamint1(ni)) )
         # pin mean radius increment
-        Deltarmpt1 = lambda ni: rmpt2*deltaK(ni)/u 
+        Deltarmpt1 = lambda ni: rmpt2*deltaK(ni)/u
         # pinion offset angle in axial plane
         eps1 = lambda ni: asin(sin(eps2(ni)) - Deltarmpt1(ni)/rmpt2*sin(ni)) 
         # pinion pitch angle
@@ -431,14 +602,15 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     tz2 = Rm2*cos(delta2) - tzm2 # pitch apex beyond crossing point along axis, gear
 
     # determination of tooth depth at calculation point
-    hmw = 2*mmn*khap # mean working depth
-    ham2 = mmn*(khap - xhm1) # gear mean addendum
-    hfm2 = mmn*(khfp + xhm1) # gear mean dedendum
-    ham1 = mmn*(khap + xhm1) # pinion mean addendum
-    hfm1 = mmn*(khfp - xhm1) # pinion mean dedendum
-    c = mmn*(khfp - khap) # clearance
+    # 支持分别设置小轮和大轮的齿顶高/齿根高系数
+    hmw = mmn*(khap1 + khap2) # mean working depth
+    ham2 = mmn*(khap2 - xhm1) # gear mean addendum
+    hfm2 = mmn*(khfp2 + xhm1) # gear mean dedendum
+    ham1 = mmn*(khap1 + xhm1) # pinion mean addendum
+    hfm1 = mmn*(khfp1 - xhm1) # pinion mean dedendum
+    c = mmn*min(khfp1 - khap1, khfp2 - khap2) # clearance (取较小值)
     hm = ham1 + hfm1 # mean whole depth (equal for both pinion and gear)
-    hm = mmn*(khap + khfp) # mean whole depth (same formula as spur gears : tooth height = module*(1+1.25))
+    hm = mmn*min(khap1 + khfp1, khap2 + khfp2) # mean whole depth
     
     # determination of dedendum angles
     match taper:
@@ -606,7 +778,7 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.pinion_common_data.MEANCONEDIST = Rm1
     basicDesignData.pinion_common_data.FACEWIDTH = b1
     basicDesignData.pinion_common_data.FACEANGLE = deltaa1*180/pi
-    basicDesignData.pinion_common_data.BACKANGLE = delta1*180/pi
+    basicDesignData.pinion_common_data.BACKANGLE = deltaf1*180/pi
     basicDesignData.pinion_common_data.FRONTANGLE = delta1*180/pi
     basicDesignData.pinion_common_data.PITCHANGLE = delta1*180/pi
     basicDesignData.pinion_common_data.BASECONEANGLE = deltaf1*180/pi
@@ -640,7 +812,7 @@ def AGMAcomputationHypoid(Hand, taper, initialConeData, toothInitialData, Method
     basicDesignData.gear_common_data.MEANCHORDALADDENDUM = hamc2
     basicDesignData.gear_common_data.FACEWIDTH = b2
     basicDesignData.gear_common_data.FACEANGLE = deltaa2*180/pi
-    basicDesignData.gear_common_data.BACKANGLE = delta2*180/pi
+    basicDesignData.gear_common_data.BACKANGLE = deltaf2*180/pi
     basicDesignData.gear_common_data.FRONTANGLE = delta2*180/pi
     basicDesignData.gear_common_data.PITCHANGLE = delta2*180/pi
     basicDesignData.gear_common_data.BASECONEANGLE = deltaf2*180/pi
@@ -804,17 +976,10 @@ def IPOPT_global_options():
         'ipopt': {
             'max_iter': 500,
             'nlp_scaling_method': 'none',
-            'linear_solver': 'ma57', # 'ma57',
-            'ma57_pre_alloc': 10,
-            'linear_system_scaling': 'none',
+            'linear_solver': 'mumps',  # 使用内置求解器，无需 HSL DLL
             'tol': 1e-6,
             'accept_every_trial_step': 'no',
-            # 'mumps_permuting_scaling': 2,
-            # 'mumps_pivot_order': 3,
-            # 'mumps_scaling': 10,
             'fast_step_computation': 'no',
-            # 'ma97scaling': 0,
-            # 'line_search_method': 'cg-penalty',
             'print_level': 5,
             'recalc_y': 'yes',
             'line_search_method': 'filter',

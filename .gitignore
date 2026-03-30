@@ -1,5 +1,5 @@
-Casadi/
-Temp/
-cpp_project/
-**.step
-**.FCstd
+__pycache__/
+*.npz
+*.txt
+*.png
+*.pdf

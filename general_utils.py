@@ -206,11 +206,9 @@ def IPOPT_global_options():
     """
     options = {
         'ipopt': {
-            'max_iter': 3000,
-            'nlp_scaling_method': 'none',
-            'linear_solver': 'ma57', # 'ma57',
-            'ma57_pre_alloc': 10,
-            'linear_system_scaling': 'none',
+            'max_iter': 1000,
+            'nlp_scaling_method': 'gradient-based',
+            'linear_solver': 'mumps',  # 使用内置求解器，无需 HSL DLL
             'tol': 1e-6,
             'accept_every_trial_step': 'no',
             # 'mumps_permuting_scaling': 2,

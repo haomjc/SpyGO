@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import casadi as ca
 from mpl_toolkits.mplot3d import Axes3D
 
 def set_data_aspect_ratio(ax, aspect_ratio):
@@ -53,9 +54,7 @@ def ease_off_9DoF(v9DoF):
     E9DoF : callable
         Function (r, s) -> array, vectorized over r,s.
     """
-
     v9DoF = np.asarray(v9DoF, dtype=float)
-
     def E9DoF(r, s):
         r = np.asarray(r, dtype=float)
         s = np.asarray(s, dtype=float)
@@ -90,13 +89,18 @@ def ease_off_9DoF(v9DoF):
 
         # linear combination (vectorized dot product)
         H = np.stack([H1, H2, H3, H4, H5, H6, H7, H8, H9], axis=0)
-        return np.tensordot(v9DoF, H, axes=(0, 0))
+
+        # if isinstance(v9DoF, ca.SX):
+        #     out = H1*v9DoF[0] + H2*v9DoF[1] + H3*v9DoF[2]+\
+        #     H4*v9DoF[3] + H5*v9DoF[4] + H6*v9DoF[5]+\
+        #     H7*v9DoF[6] + H8*v9DoF[7] + H9*v9DoF[8]
+        #     return out
+        out = np.tensordot(v9DoF, H, axes=(0, 0))
+        return out
 
     return E9DoF
 
 def ease_off_5DoF(v5DoF):
-
-    v5DoF = np.asarray(v5DoF, dtype = float)
     
     PA = v5DoF[0] # pressure angle mod.
     SA = v5DoF[1] # pressure angle mod.
@@ -108,6 +112,30 @@ def ease_off_5DoF(v5DoF):
         return PA*v + SA*u + PC*v**2 + LC*u**2 + TW*u*v
     
     return E5DoF
+
+def ease_off_fillet(E_discrete, n_div_fillet, deg = 0.7):
+    u_num = np.linspace(0, 1, n_div_fillet+1).reshape(-1, 1)
+    E_flank_fillet = E_discrete[0,:].reshape(1, -1)
+    u_num = u_num[0:-1]
+    E_fillet = E_flank_fillet*u_num**deg
+    return np.vstack((E_fillet, E_discrete))
+
+def compute_ease_off(vDoF, n_prof = 11, n_face = 22, n_fillet = 6):
+    """
+    Ease-off function with a continuous (non-smooth) transition towards the rootline, where no material should be removed
+    The z-R grid shall be constructed accordingly outside the funciton
+    """
+    vDoF = np.array(vDoF)
+    if max(vDoF.shape) == 5:
+        E_fun = ease_off_5DoF(vDoF)
+    else:
+        E_fun = ease_off_9DoF(vDoF)
+
+    U, V = np.meshgrid(np.linspace(-1, 1, n_prof), np.linspace(-1, 1, n_face))
+
+    E_num = E_fun(U, V)
+    E_num = ease_off_fillet(E_num, n_fillet)
+    return E_num
 
 def plot_ease_off(E_fun, number_U = 50, number_V = 50, labels = ['u', 'v', 'E [$\mu$m]'], aspect_ratio = [1,1,1]):
 
